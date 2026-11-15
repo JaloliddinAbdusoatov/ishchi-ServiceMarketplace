@@ -1,4 +1,4 @@
-# ISHCHI marketplace
+# ISHCHI service marketplace
 
 [O‘zbekcha](#uzbek) | [Русский](#russian) | [English](#english)
 
