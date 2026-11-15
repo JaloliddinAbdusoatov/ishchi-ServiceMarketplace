@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+media/
+staticfiles/
+.pytest_cache/
+*.log
+.demo/
+
+
+.local/
+.env.production
