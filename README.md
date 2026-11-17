@@ -38,8 +38,8 @@ directory, then run:
 First clone the repository with Git (the private repository requires access):
 
 ```powershell
-git clone https://github.com/JaloliddinAbdusoatov/ishchi-marketplace.git
-Set-Location ishchi-marketplace
+git clone https://github.com/JaloliddinAbdusoatov/ishchi-ServiceMarketplace.git
+Set-Location ishchi-ServiceMarketplace
 ```
 
 ```powershell
@@ -174,8 +174,8 @@ Avval Git orqali loyihani yuklab oling. Repozitoriy private bo‘lsa, egasidan
 kirish huquqini olish va GitHub’da autentifikatsiya qilish kerak:
 
 ```powershell
-git clone https://github.com/JaloliddinAbdusoatov/ishchi-marketplace.git
-Set-Location ishchi-marketplace
+git clone https://github.com/JaloliddinAbdusoatov/ishchi-ServiceMarketplace.git
+Set-Location ishchi-ServiceMarketplace
 ```
 
 ```powershell
@@ -347,8 +347,8 @@ http://127.0.0.1:8001.
 Сначала клонируйте проект (для private-репозитория нужен доступ):
 
 ```powershell
-git clone https://github.com/JaloliddinAbdusoatov/ishchi-marketplace.git
-Set-Location ishchi-marketplace
+git clone https://github.com/JaloliddinAbdusoatov/ishchi-ServiceMarketplace.git
+Set-Location ishchi-ServiceMarketplace
 ```
 
 ```powershell
