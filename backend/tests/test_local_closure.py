@@ -72,6 +72,7 @@ def test_generated_policy_and_checked_in_sql_match_without_execution():
         assert plan.POLICY[name] == "SELECT, INSERT"
     assert plan.POLICY["django_migrations"] == "SELECT"
     for filename, generated in (("apply.sql", plan.apply_sql()), ("rollback.sql", plan.rollback_sql())):
+        assert all(line == line.rstrip() for line in generated.splitlines())
         assert (ROOT / "deploy/local/privileges" / filename).read_text() == generated
         assert "current_database() <> 'ishchi_marketplace_local'" in generated
         assert "session_user <> 'ishchi_bootstrap'" in generated

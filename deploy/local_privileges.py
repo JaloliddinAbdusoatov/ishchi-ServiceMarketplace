@@ -49,7 +49,7 @@ FUNCTIONS = ("fn_enforce_worker_category_limit()", "fn_purge_deactivated_worker_
 def guard(owner, *, applying):
     names = ",".join("'" + name + "'" for name in sorted(POLICY))
     missing_functions = " OR ".join("to_regprocedure('public." + signature + "') IS NULL" for signature in FUNCTIONS)
-    roles = "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname IN ('ishchi_local_owner','ishchi_local_migrator')) THEN RAISE EXCEPTION 'New role already exists; independent review required'; END IF;" if applying else ""
+    roles = "  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname IN ('ishchi_local_owner','ishchi_local_migrator')) THEN RAISE EXCEPTION 'New role already exists; independent review required'; END IF;\n" if applying else "\n"
     return f"""-- NOT AUTHORIZATION. Existing local database only; no data/reset/drop statements.
 \\set ON_ERROR_STOP on
 BEGIN;
@@ -60,8 +60,7 @@ BEGIN
   IF current_database() <> 'ishchi_marketplace_local' OR session_user <> 'ishchi_bootstrap' THEN
     RAISE EXCEPTION 'Wrong database or privileged operator';
   END IF;
-  {roles}
-  IF (SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()) <> '{owner}'
+{roles}  IF (SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname=current_database()) <> '{owner}'
      OR (SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname='public') <> '{owner}' THEN
     RAISE EXCEPTION 'Database/schema owner drift; independent review required';
   END IF;
