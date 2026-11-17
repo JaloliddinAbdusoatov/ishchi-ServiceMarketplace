@@ -1,0 +1,16 @@
+# Allowlist: environments, databases, media, fixtures and secrets never enter context.
+**
+!requirements-production.lock
+!manage.py
+!apps/
+!apps/**
+!config/
+!config/**
+!static/
+!static/**
+!templates/
+!templates/**
+!Dockerfile
+**/__pycache__/
+**/*.pyc
+**/.env*

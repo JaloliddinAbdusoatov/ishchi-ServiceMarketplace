@@ -1,5 +1,6 @@
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from apps.accounts.services.hiring_locks import lock_hiring_accounts
 from apps.applications.models import ApplicationStatus, OrderApplication
 from apps.common.exceptions import BusinessRuleViolation, ConflictError, ForbiddenActionError
 from apps.invitations.models import InvitationStatus, OrderInvitation
@@ -30,6 +31,10 @@ class ApplicationService:
         )
         if not order:
             raise BusinessRuleViolation("Service order not found.", code="order_not_found", status_code=404)
+
+        if not (order.employer.user.is_active and order.employer.user.account_status == "ACTIVE"
+                and not order.employer.user.is_anonymized):
+            raise ForbiddenActionError("Employer account is not active.", code="employer_not_active")
 
         locked_worker = (
             WorkerProfile.objects.select_for_update(of=("self",))
@@ -123,7 +128,8 @@ class ApplicationService:
         if not ref:
             raise BusinessRuleViolation("Application not found.", code="application_not_found", status_code=404)
 
-        # Level 1 lock: parent ServiceOrder
+        lock_hiring_accounts(ref["order_id"], ref["worker_id"])
+        # Account locks precede parent ServiceOrder and child locks.
         order = (
             ServiceOrder.objects.select_for_update(of=("self",))
             .select_related("employer__user")

@@ -1,0 +1,15 @@
+# INERT TEMPLATE. Installation and execution need exact-target owner authorization.
+# Existing Django production DB safeguards remain in force.
+[Unit]
+Description=ISHCHI retry durable media erasure
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/ishchi
+ExecStart=/usr/bin/docker compose --env-file /srv/ishchi/deploy/.env -f /srv/ishchi/deploy/compose.production.yml run --rm --no-deps backend python manage.py retry_media_erasure --apply --confirm-media-root /app/media --limit 100
+TimeoutStartSec=120
+UMask=0077
+StandardOutput=journal
+StandardError=journal

@@ -93,15 +93,16 @@ export function AdminUsersPage() {
             />
           </div>
           <NativeSelect
+            aria-label={t("auth.roleLabel")}
             value={role}
             onChange={(e) => {
               setRole(e.target.value);
               setPage(1);
             }}
           >
-            <option value="">{t("common.all")} (Role)</option>
-            <option value="WORKER">WORKER</option>
-            <option value="EMPLOYER">EMPLOYER</option>
+            <option value="">{t("common.all")} ({t("auth.roleLabel")})</option>
+            <option value="WORKER">{t("auth.roleWorker")}</option>
+            <option value="EMPLOYER">{t("auth.roleEmployer")}</option>
             <option value="ADMIN">ADMIN</option>
           </NativeSelect>
           <NativeSelect
@@ -135,12 +136,12 @@ export function AdminUsersPage() {
                   key={u.id}
                   className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="space-y-1">
+                  <div className="min-w-0 space-y-1 [overflow-wrap:anywhere]">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold">{u.full_name}</span>
-                      <Badge variant="outline">{u.role}</Badge>
+                      <Badge variant="outline">{u.role === "ADMIN" ? "ADMIN" : t(u.role === "WORKER" ? "auth.roleWorker" : "auth.roleEmployer")}</Badge>
                       {u.is_worker && u.is_employer && (
-                        <Badge variant="secondary">WORKER + EMPLOYER</Badge>
+                        <Badge variant="secondary" className="max-w-full whitespace-normal">{t("auth.roleWorker")} + {t("auth.roleEmployer")}</Badge>
                       )}
                       <StatusBadge status={u.account_status} showIcon />
                     </div>

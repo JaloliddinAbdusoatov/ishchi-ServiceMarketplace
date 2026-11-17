@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
+from redis.exceptions import ConnectionError as RedisConnectionError, TimeoutError as RedisTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,13 @@ def custom_exception_handler(exc, context):
         }
     }
     """
+    if isinstance(exc, (RedisConnectionError, RedisTimeoutError)):
+        logger.warning("Security cache unavailable")
+        return Response({"success": False, "error": {
+            "code": "service_unavailable", "message": "Service temporarily unavailable. Try again later.",
+            "details": None,
+        }}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
     if isinstance(exc, DjangoValidationError):
         details = exc.message_dict if hasattr(exc, "message_dict") else exc.messages
         return Response(

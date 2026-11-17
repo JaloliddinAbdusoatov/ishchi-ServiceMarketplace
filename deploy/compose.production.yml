@@ -1,0 +1,80 @@
+# Preparation only: tests/CI never start services. Real targets need owner approval.
+name: ishchi
+x-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-ishchi-backend:sprint4}
+    build:
+      context: ../backend
+    user: "10001:10001"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,mode=1777"]
+    env_file:
+      - path: ${DEPLOY_SECRETS_DIR:?Select an external secrets directory}/backend.env
+        required: true
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      ISHCHI_ENV: production
+      TRUST_HTTPS_PROXY: "true"
+      TRUSTED_PROXY_IPS: "127.0.0.1"
+      HEALTHCHECK_HOST: ${APP_HOST:-example.uz}
+      DJANGO_MEDIA_ROOT: /app/media
+      DB_SSLROOTCERT: /run/secrets/postgres-ca.pem
+      REDIS_SSLROOTCERT: /run/secrets/redis-ca.pem
+    secrets:
+      - source: postgres_ca
+        target: postgres-ca.pem
+      - source: redis_ca
+        target: redis-ca.pem
+    volumes:
+      - media:/app/media
+      - static:/app/staticfiles
+    ports: ["127.0.0.1:8080:8080", "127.0.0.1:8443:8443"]
+    stop_grace_period: 45s
+    restart: unless-stopped
+    pids_limit: 128
+    mem_limit: 512m
+    logging: *bounded-logging
+  gateway:
+    image: ${FRONTEND_IMAGE:-ishchi-frontend:sprint4}
+    build:
+      context: ../frontend
+    # Shared loopback avoids trusting mutable container subnets or exposing WSGI.
+    network_mode: service:backend
+    depends_on:
+      backend:
+        condition: service_started
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,mode=1777"]
+    volumes:
+      - ./nginx.conf.example:/etc/nginx/nginx.conf:ro
+      - media:/srv/ishchi/media:ro
+      - static:/srv/ishchi/static:ro
+    secrets: [tls_certificate, tls_key]
+    stop_grace_period: 15s
+    restart: unless-stopped
+    pids_limit: 64
+    mem_limit: 128m
+    logging: *bounded-logging
+volumes:
+  media:
+  static:
+secrets:
+  postgres_ca:
+    file: ${DEPLOY_SECRETS_DIR:?Select an external secrets directory}/postgres-ca.pem
+  redis_ca:
+    file: ${DEPLOY_SECRETS_DIR:?Select an external secrets directory}/redis-ca.pem
+  tls_certificate:
+    file: ${DEPLOY_SECRETS_DIR:?Select an external secrets directory}/tls.crt
+  tls_key:
+    file: ${DEPLOY_SECRETS_DIR:?Select an external secrets directory}/tls.key

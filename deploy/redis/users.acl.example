@@ -1,0 +1,4 @@
+# Runtime account stays OFF until the authorized operator installs a secret hash.
+# A dedicated service per environment is recommended; DB indexes are not ACL isolation.
+user default off
+user ishchi_runtime off resetpass resetkeys ~ishchi:production:* resetchannels -@all +ping +hello +select +client|setname +client|setinfo +get +set +del +mget +mset +exists +expire +pexpire +ttl +pttl +incr +incrby +eval +evalsha +script|load +multi +exec +discard

@@ -1,0 +1,12 @@
+{
+  "approved_by": "",
+  "expires_at": "2000-01-01T00:00:00Z",
+  "target": {
+    "dbname": "ishchi_marketplace_sprint1_replace",
+    "host": "",
+    "port": "5432",
+    "user": ""
+  },
+  "disposable": true,
+  "operations": ["connect", "test_schema"]
+}

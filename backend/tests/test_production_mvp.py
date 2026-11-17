@@ -55,6 +55,7 @@ def test_registration_activates_immediately_without_sms_or_admin_approval(api_cl
     assert cache.get(f"otp_session:VERIFY_PHONE:{user.phone_number}") is None
 
 
+@pytest.mark.django_db
 def test_optional_otp_delivery_failure_invalidates_code():
     phone = PAYLOAD["phone_number"]
     with patch("apps.accounts.services.otp_service.get_sms_provider", side_effect=SMSUnavailable):
@@ -82,7 +83,7 @@ def test_suspended_account_cannot_be_reactivated_by_phone_otp(api_client):
     with patch("apps.accounts.services.otp_service.get_sms_provider") as provider:
         OTPService.send_otp(user.phone_number)
     code = provider.return_value.send_otp.call_args.args[1]
-    assert api_client.post("/api/v1/auth/otp/verify/", {"phone_number": user.phone_number, "otp": code}, format="json").status_code == 403
+    assert api_client.post("/api/v1/auth/otp/verify/", {"phone_number": user.phone_number, "otp": code}, format="json").status_code == 401
     user.refresh_from_db()
     assert user.account_status == "SUSPENDED"
 
@@ -204,8 +205,10 @@ def test_only_explicitly_trusted_proxy_can_set_client_ip():
         assert _get_client_ip(request) == "127.0.0.1"
 
 
+@pytest.mark.django_db
 def test_otp_expiration_attempt_limit_and_hashed_storage():
     phone = "+998931234567"
+    UserFactory(phone_number=phone)
     with patch("apps.accounts.services.otp_service.get_sms_provider") as provider:
         assert OTPService.send_otp(phone)["success"]
         code = provider.return_value.send_otp.call_args.args[1]
@@ -251,8 +254,8 @@ def production_environment():
         "DJANGO_SECRET_KEY": "test-only-" + "s4N8kP9x7" * 8, "DJANGO_ALLOWED_HOSTS": "api.example.uz",
         "CSRF_TRUSTED_ORIGINS": "https://example.uz", "CORS_ALLOWED_ORIGINS": "https://example.uz",
         "DB_NAME": "ishchi_marketplace", "DB_USER": "runtime", "DB_PASSWORD": "test-only",
-        "DB_HOST": "db.invalid", "DB_PORT": "5432", "DB_SSLROOTCERT": "/not-used/ca.pem",
-        "REDIS_URL": "rediss://cache.invalid:6379/1", "SMS_BACKEND": "http",
+        "DB_HOST": "db.invalid", "DB_PORT": "5432", "DB_SSLROOTCERT": str(Path(__file__).parent / "fixtures" / "public-test-ca.pem"),
+        "REDIS_URL": "rediss://default:synthetic-test-only@cache.invalid:6379/1", "SMS_BACKEND": "http",
         "SMS_API_URL": "https://sms.invalid/send", "SMS_API_TOKEN": "test-only"})
     return env
 
@@ -262,7 +265,8 @@ def production_environment():
     ({"SMS_API_TOKEN": ""}, False), ({"SMS_API_URL": "http://sms.invalid"}, False),
     ({"DJANGO_SECRET_KEY": ""}, False), ({"DJANGO_ALLOWED_HOSTS": "*"}, False),
     ({"CORS_ALLOWED_ORIGINS": "https://*.example.uz"}, False), ({"DB_NAME": "ishchi_test"}, False),
-    ({"CSRF_TRUSTED_ORIGINS": "http://example.uz"}, False)])
+    ({"CSRF_TRUSTED_ORIGINS": "http://example.uz"}, False),
+    ({"REDIS_KEY_PREFIX": "*"}, False)])
 def test_production_startup_configuration_without_network(override, valid):
     env = production_environment()
     env.update(override)

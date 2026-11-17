@@ -9,6 +9,7 @@ from apps.accounts.models import AccountStatus, User, UserRole
 from apps.accounts.permissions import IsAdminUserRole, IsEmployer, IsWorker
 from apps.accounts.serializers import UserSummarySerializer
 from apps.accounts.services.auth_service import _blacklist_all_user_tokens
+from apps.accounts.services.audit_service import record_admin_action
 from apps.applications.models import ApplicationStatus, OrderApplication
 from apps.categories.models import Category
 from apps.common.exceptions import BusinessRuleViolation
@@ -196,6 +197,7 @@ class AdminUserSuspendView(APIView):
             target.token_version += 1
             target.save(update_fields=["account_status", "is_active", "token_version", "updated_at"])
             _blacklist_all_user_tokens(target)
+            record_admin_action(request.user, "account.suspended", target)
 
         return success_response(data=UserSummarySerializer(target).data, message="User account suspended.")
 
@@ -212,6 +214,7 @@ class AdminUserActivateView(APIView):
             target.account_status = AccountStatus.ACTIVE
             target.is_active = True
             target.save(update_fields=["account_status", "is_active", "updated_at"])
+            record_admin_action(request.user, "account.activated", target)
 
         return success_response(data=UserSummarySerializer(target).data, message="User account activated.")
 
@@ -275,6 +278,7 @@ class AdminWorkerVerifyView(APIView):
                 msg = f"Your worker verification was rejected. Notes: {worker.verification_notes}"
 
             worker.save()
+            record_admin_action(request.user, "worker.verification." + action.lower(), worker)
             NotificationService.notify(
                 recipient=worker.user,
                 event_type=NotificationEventType.VERIFICATION_UPDATED,
@@ -331,6 +335,9 @@ class AdminOrderModerateView(APIView):
             new_status = OrderStatus.CANCELLED if action == "CANCEL" else OrderStatus.CLOSED
             order.status = new_status
             order.save(update_fields=["status", "updated_at"])
+            from apps.orders.services import OrderService
+            OrderService._reject_pending_requests(order, "Order ended by administrator.", new_status)
+            record_admin_action(request.user, "order.moderation." + action.lower(), order)
             NotificationService.notify(
                 recipient=order.employer.user,
                 event_type=NotificationEventType.ORDER_STATUS_CHANGED,
@@ -380,4 +387,5 @@ class AdminReportResolveView(APIView):
             if report.status in (ReportStatus.RESOLVED, ReportStatus.REJECTED):
                 report.resolved_at = timezone.now()
             report.save()
+            record_admin_action(request.user, "report.status." + report.status.lower(), report)
         return success_response(data=ReportSerializer(report).data, message="Report updated.")

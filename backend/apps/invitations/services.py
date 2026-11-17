@@ -1,6 +1,7 @@
 from datetime import timedelta
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from apps.accounts.services.hiring_locks import lock_hiring_accounts
 from apps.applications.models import ApplicationStatus, OrderApplication
 from apps.common.exceptions import BusinessRuleViolation, ConflictError, ForbiddenActionError
 from apps.invitations.models import InvitationStatus, OrderInvitation
@@ -98,6 +99,7 @@ class InvitationService:
 
         expired_flag = False
         with transaction.atomic():
+            lock_hiring_accounts(ref["order_id"], ref["worker_id"])
             # Level 1 lock: parent ServiceOrder
             order = (
                 ServiceOrder.objects.select_for_update(of=("self",))

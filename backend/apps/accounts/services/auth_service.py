@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import time
 from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
@@ -14,6 +15,7 @@ from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from apps.accounts.models import AccountDeletionAudit, AccountStatus, User, UserRole
 from apps.accounts.services.otp_service import OTPPurpose, OTPService
 from apps.accounts.services.locks import increment_bucket
+from apps.accounts.services.sms_service import SMSUnavailable
 from apps.common.exceptions import BusinessRuleViolation, ConflictError
 from apps.profiles.models import EmployerProfile, EmployerType, VerificationStatus, WorkerProfile
 
@@ -139,6 +141,9 @@ class AuthService:
             )
 
         user = User.objects.filter(phone_number=phone_number, is_anonymized=False).first()
+        if user is None:
+            # Match the password-hashing cost of existing accounts.
+            User().set_password(password)
         if not user or not user.check_password(password):
             fails = increment_bucket(fail_key, getattr(settings, "LOGIN_LOCKOUT_SECONDS", 900))
             max_attempts = getattr(settings, "LOGIN_MAX_ATTEMPTS", 5)
@@ -215,14 +220,21 @@ class AuthService:
     @classmethod
     def request_password_reset(cls, phone_number: str, ip_address: str = None) -> dict:
         # Always dispatch rate-limit check cleanly without leaking account existence
+        cache.get("password_reset_availability")  # Unknown accounts also fail closed on cache outage.
         user_exists = User.objects.filter(
             phone_number=phone_number,
             is_anonymized=False,
             is_active=True,
             account_status=AccountStatus.ACTIVE,
+            is_phone_verified=True,
         ).exists()
         if user_exists:
-            return OTPService.send_otp(phone_number, purpose=OTPPurpose.PASSWORD_RESET, ip_address=ip_address)
+            try:
+                OTPService.send_otp(phone_number, purpose=OTPPurpose.PASSWORD_RESET, ip_address=ip_address)
+            except SMSUnavailable:
+                # The failed OTP is invalidated by send_otp. Keep the public
+                # acknowledgement independent of account/delivery existence.
+                pass
         return {
             "success": True,
             "message": "If an active account exists for this phone number, a reset code has been dispatched.",
@@ -234,20 +246,20 @@ class AuthService:
     @classmethod
     @transaction.atomic
     def confirm_password_reset(cls, phone_number: str, otp: str, new_password: str) -> None:
-        ok, err_code, err_msg = OTPService.verify_otp(phone_number, otp, purpose=OTPPurpose.PASSWORD_RESET)
-        if not ok:
-            raise BusinessRuleViolation(err_msg, code=err_code)
-
         user = User.objects.select_for_update().filter(
             phone_number=phone_number,
             is_anonymized=False,
             is_active=True,
             account_status=AccountStatus.ACTIVE,
+            is_phone_verified=True,
         ).first()
         if not user:
-            raise BusinessRuleViolation("Account not found or inactive.", code="account_not_found")
+            raise BusinessRuleViolation("Verification code has expired or is invalid.", code="otp_expired_or_invalid")
 
         validate_password(new_password, user=user)
+        ok, err_code, err_msg = OTPService.verify_otp(phone_number, otp, purpose=OTPPurpose.PASSWORD_RESET)
+        if not ok:
+            raise BusinessRuleViolation(err_msg, code=err_code)
         user.set_password(new_password)
         user.token_version += 1
         user.save(update_fields=["password", "token_version", "updated_at"])
@@ -256,10 +268,6 @@ class AuthService:
     @classmethod
     @transaction.atomic
     def verify_phone_otp(cls, phone_number: str, otp: str) -> User:
-        ok, err_code, err_msg = OTPService.verify_otp(phone_number, otp, purpose=OTPPurpose.VERIFY_PHONE)
-        if not ok:
-            raise BusinessRuleViolation(err_msg, code=err_code)
-
         user = User.objects.select_for_update().filter(
             phone_number=phone_number,
             is_anonymized=False,
@@ -269,6 +277,9 @@ class AuthService:
 
         if not user.is_active or user.account_status != AccountStatus.ACTIVE:
             raise BusinessRuleViolation("Account is inactive.", code="account_inactive", status_code=403)
+        ok, err_code, err_msg = OTPService.verify_otp(phone_number, otp, purpose=OTPPurpose.VERIFY_PHONE)
+        if not ok:
+            raise BusinessRuleViolation(err_msg, code=err_code)
         user.is_phone_verified = True
         user.save(update_fields=["is_phone_verified", "updated_at"])
         return user
@@ -354,8 +365,23 @@ class AuthService:
 
         now = timezone.now()
         old_phone = locked_user.phone_number or str(locked_user.id)
-        phone_hash = hashlib.sha256(old_phone.encode("utf-8")).hexdigest()
+        phone_hash = hmac.new(settings.SECRET_KEY.encode(), old_phone.encode(), hashlib.sha256).hexdigest()
         short_id = str(locked_user.id)[:8]
+
+        # Remove public profile media only after the database commit succeeds.
+        # A failed audit/anonymization must leave the original profile intact.
+        erased_media = []
+        for profile_name in ("worker_profile", "employer_profile"):
+            profile = getattr(locked_user, profile_name, None)
+            if profile and profile.photo:
+                erased_media.append(profile.photo.name)
+        worker_profile = getattr(locked_user, "worker_profile", None)
+        if worker_profile:
+            erased_media.extend(item.image.name
+                for item in worker_profile.portfolio_items.all() if item.image)
+        if erased_media:
+            from apps.common.media_erasure import queue_media_erasure
+            queue_media_erasure(erased_media)
 
         # Cancel open employer orders while preserving COMPLETED / historical orders
         if hasattr(locked_user, "employer_profile"):
@@ -431,7 +457,7 @@ class AuthService:
             user_id=locked_user.id,
             phone_hash=phone_hash,
             role=locked_user.role,
-            reason=reason,
+            reason="",  # Free text can reintroduce erased PII or credentials.
             performed_by_id=(performed_by.id if performed_by else locked_user.id),
         )
         return audit

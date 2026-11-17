@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 !.env.production.example
+!.env.local.example
+# Operator attestations stay outside version control; examples remain inert.
+*-authorization.json
 
 # Local databases, uploads and runtime snapshots.
 .local/
@@ -23,6 +26,11 @@ __pycache__/
 .pytest_cache/
 .coverage
 coverage/
+backups/
+*.age
+*.partial
+*.key
+deploy/.local/
 htmlcov/
 *.tsbuildinfo
 

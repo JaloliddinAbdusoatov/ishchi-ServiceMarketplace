@@ -35,7 +35,7 @@ ALLOWED_HOSTS = [
 ]
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
+    "apps.accounts.admin_config.MarketplaceAdminConfig",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -65,6 +65,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "apps.common.middleware.RequestIDMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -116,7 +117,7 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1")
 
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
+        "BACKEND": "apps.common.redis_backend.RedisCache",
         "LOCATION": REDIS_URL,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
@@ -206,8 +207,8 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
     "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
+        "apps.accounts.throttling.AnonymousThrottle",
+        "apps.accounts.throttling.AccountThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "120/min",
@@ -261,9 +262,10 @@ SPECTACULAR_SETTINGS = {
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {"request_id": {"()": "apps.common.middleware.RequestIDFilter"}},
     "formatters": {
         "standard": {
-            "format": "[{asctime}] {levelname} {name}: {message}",
+            "format": "[{asctime}] {levelname} {name} request_id={request_id}: {message}",
             "style": "{",
         },
     },
@@ -271,10 +273,12 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "standard",
+            "filters": ["request_id"],
         },
     },
     "root": {
         "handlers": ["console"],
         "level": "INFO",
     },
+    "loggers": {"ishchi.request": {"level": "INFO"}},
 }

@@ -158,22 +158,26 @@ describe("Authentication Forms & Role-Based Routing", () => {
     expect(otpSpy).not.toHaveBeenCalled();
   });
 
-  it("allows optional phone verification with backend-issued tokens", async () => {
+  it("verifies the signed-in phone while preserving the existing session", async () => {
     const user = userEvent.setup();
+    useAuthStore.getState().setSession(baseUser, {
+      access: "existing-access", refresh: "existing-refresh", token_type: "Bearer",
+    });
     vi.spyOn(authApi, "verifyOtp").mockResolvedValue({ success: true, data: {
-      user: baseUser, tokens: { access: "verified-access", refresh: "verified-refresh", token_type: "Bearer" },
+      user: { ...baseUser, is_phone_verified: true },
     }});
     renderWithProviders(<Routes>
       <Route path="/verify-otp" element={<OtpVerifyPage />} />
       <Route path="/worker" element={<div>Activated worker</div>} />
     </Routes>, { initialEntries: ["/verify-otp"] });
     const inputs = screen.getAllByRole("textbox");
-    await user.clear(inputs[0]);
-    await user.type(inputs[0], "+998901234567");
+    expect(inputs[0]).toHaveAttribute("readonly");
     await user.type(inputs[1], "654321");
     await user.click(screen.getAllByRole("button")[0]);
     expect(await screen.findByText("Activated worker")).toBeInTheDocument();
-    expect(useAuthStore.getState().refreshToken).toBe("verified-refresh");
+    expect(useAuthStore.getState().refreshToken).toBe("existing-refresh");
+    expect(useAuthStore.getState().accessToken).toBe("existing-access");
+    expect(useAuthStore.getState().user?.is_phone_verified).toBe(true);
   });
 
 });

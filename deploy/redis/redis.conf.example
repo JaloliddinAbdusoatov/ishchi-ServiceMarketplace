@@ -1,0 +1,23 @@
+# Operator-only template; never launched by Compose or CI.
+bind 127.0.0.1
+protected-mode yes
+port 0
+tls-port 6379
+tls-cert-file /run/secrets/redis.crt
+tls-key-file /run/secrets/redis.key
+tls-ca-cert-file /run/secrets/redis-ca.pem
+# Application authenticates with its ACL username/password over verified TLS.
+tls-auth-clients no
+aclfile /etc/redis/users.acl
+dir /data
+appendonly yes
+appendfsync always
+aof-use-rdb-preamble yes
+save 900 1
+maxmemory 256mb
+maxmemory-policy noeviction
+stop-writes-on-bgsave-error yes
+logfile ""
+loglevel notice
+# Select actual memory/disk limits, private bind address and persistence policy
+# only after approval. Missing/reverted security state requires session revocation.

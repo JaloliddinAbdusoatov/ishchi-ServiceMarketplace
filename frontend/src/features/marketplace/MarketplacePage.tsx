@@ -198,7 +198,7 @@ export function MarketplacePage({ defaultTab = "orders" }: { defaultTab?: "order
             <button
               type="button"
               onClick={() => setViewMode("grid")}
-              aria-label="Grid View"
+              aria-label={t("common.gridView")}
               className={`rounded-md p-1.5 ${viewMode === "grid" ? "bg-muted text-primary" : "text-muted-foreground"}`}
             >
               <LayoutGrid className="h-4 w-4" />
@@ -206,7 +206,7 @@ export function MarketplacePage({ defaultTab = "orders" }: { defaultTab?: "order
             <button
               type="button"
               onClick={() => setViewMode("list")}
-              aria-label="List View"
+              aria-label={t("common.listView")}
               className={`rounded-md p-1.5 ${viewMode === "list" ? "bg-muted text-primary" : "text-muted-foreground"}`}
             >
               <List className="h-4 w-4" />

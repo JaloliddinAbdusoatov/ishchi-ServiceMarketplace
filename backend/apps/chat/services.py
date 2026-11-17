@@ -77,6 +77,9 @@ class ChatService:
     @transaction.atomic
     def send_message(cls, conversation: Conversation, sender, content: str = "", attachment=None) -> Message:
         cls.assert_conversation_access(conversation, sender)
+        if attachment:
+            from apps.common.validators import validate_chat_attachment
+            validate_chat_attachment(attachment)
         clean_content = (content or "").strip()
         if not clean_content and not attachment:
             raise BusinessRuleViolation("Message must contain text content or an attachment.", code="empty_message")

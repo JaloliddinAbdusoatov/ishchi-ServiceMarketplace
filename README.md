@@ -1,5 +1,15 @@
 # ISHCHI service marketplace
 
+ISHCHI — ishchilar va buyurtmachilarni bog‘laydigan xizmatlar platformasi.
+Yangi foydalanuvchilar uchun [o‘zbekcha o‘rnatish yo‘riqnomasi](#uzbek).
+
+**Ishga tushirish usulini tanlang:** yangi klon uchun quyidagi SQLite + Vite
+yo‘riqnomasi yetarli (Docker/PostgreSQL/Redis talab qilinmaydi). Docker’dagi lokal
+PostgreSQL/Redis muhiti uchun [operator yo‘riqnomasi](deploy/LOCAL.md) mavjud;
+undagi kompyuterga xos yo‘llar va avvalgi ruxsatlar yangi foydalanuvchiga
+ko‘chmaydi. Production chiqarish talablari: [runbook](deploy/RUNBOOK.md).
+Ommaviy serverga deploy bajarilmagan.
+
 [O‘zbekcha](#uzbek) | [Русский](#russian) | [English](#english)
 
 <a id="english"></a>
@@ -25,11 +35,19 @@ media separately; keep those private. The Git repository root is this directory.
 Use Python 3.14 and Node.js 24 LTS. Open PowerShell in the cloned project
 directory, then run:
 
+First clone the repository with Git (the private repository requires access):
+
+```powershell
+git clone https://github.com/JaloliddinAbdusoatov/ishchi-marketplace.git
+Set-Location ishchi-marketplace
+```
+
 ```powershell
 python -m venv backend\.venv
 .\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 if (!(Test-Path backend\.env)) { Copy-Item backend\.env.example backend\.env }
 if (!(Test-Path frontend\.env)) { Copy-Item frontend\.env.example frontend\.env }
+.\backend\.venv\Scripts\python.exe -c "from pathlib import Path; from django.core.management.utils import get_random_secret_key; p=Path('backend/.env'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('DJANGO_SECRET_KEY=\n', 'DJANGO_SECRET_KEY='+get_random_secret_key()+'\n'), encoding='utf-8')"
 Set-Location frontend
 npm ci
 ```
@@ -59,6 +77,17 @@ npm run dev
 Open http://127.0.0.1:5173. API and media requests use Vite's proxy to port 8001.
 The admin UI is at http://127.0.0.1:8001/django-admin/; create your own administrator
 with `manage.py createsuperuser` if needed.
+
+Fresh clones contain no accounts, categories or jobs. Register an employer and
+worker yourself; create service categories in Django admin before publishing jobs.
+There is no shared default login. Registration activates immediately; phone
+verification and KYC are optional. SMS verification/password reset need a real
+provider; SMS is disabled by default. Payments are disabled.
+
+For fictional content in your own local SQLite database only, optionally run
+`manage.py seed_marketplace --settings=config.settings.development` from the backend
+virtual environment. It adds sample categories, profiles and jobs; generated users
+have no usable passwords. Register your own accounts for interactive testing.
 
 ### Checks
 
@@ -120,16 +149,41 @@ Git tomonidan e’tiborga olinmaydi. Mavjud lokal ma’lumotlarni saqlash uchun
 `backend/.local/` va yuklangan media fayllarini alohida, maxfiy tarzda ko‘chiring.
 Git repozitoriysining ildizi — ushbu loyiha papkasi.
 
+### Imkoniyatlar va loyiha tuzilishi
+
+- Buyurtmachi: ish e’lon qilish, arizalarni ko‘rish, ishchini tanlash va ishni yakunlash.
+- Ishchi: profil, xizmat kategoriyalari va portfolio; ishlarga ariza berish.
+- Ishtirokchilar uchun chat va fayllar, bildirishnomalar, baholar va sharhlar.
+- Administrator uchun foydalanuvchilar, kategoriyalar va shikoyatlarni boshqarish.
+- O‘zbekcha, ruscha va inglizcha interfeys; telefon/parol orqali kirish, ixtiyoriy KYC.
+
+`backend/` — Django REST API va testlar; `frontend/` — React/TypeScript/Vite
+interfeysi va testlar; `deploy/` — Docker, lokal operatsiyalar va production
+yo‘riqnomalari; `.github/workflows/` — avtomatik tekshiruvlar.
+
+Ro‘yxatdan o‘tish uchun SMS shart emas. SMS orqali parol tiklash va telefonni
+tasdiqlash uchun haqiqiy SMS provayderini sozlash kerak; standart sozlamada u
+o‘chirilgan. To‘lov funksiyasi o‘chirilgan.
+
 ### Lokal o‘rnatish (PowerShell)
 
 Python 3.14 va Node.js 24 LTS kerak. Klonlangan loyiha papkasida PowerShell ochib,
 quyidagi buyruqlarni bajaring:
+
+Avval Git orqali loyihani yuklab oling. Repozitoriy private bo‘lsa, egasidan
+kirish huquqini olish va GitHub’da autentifikatsiya qilish kerak:
+
+```powershell
+git clone https://github.com/JaloliddinAbdusoatov/ishchi-marketplace.git
+Set-Location ishchi-marketplace
+```
 
 ```powershell
 python -m venv backend\.venv
 .\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 if (!(Test-Path backend\.env)) { Copy-Item backend\.env.example backend\.env }
 if (!(Test-Path frontend\.env)) { Copy-Item frontend\.env.example frontend\.env }
+.\backend\.venv\Scripts\python.exe -c "from pathlib import Path; from django.core.management.utils import get_random_secret_key; p=Path('backend/.env'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('DJANGO_SECRET_KEY=\n', 'DJANGO_SECRET_KEY='+get_random_secret_key()+'\n'), encoding='utf-8')"
 Set-Location frontend
 npm ci
 ```
@@ -165,6 +219,62 @@ administrator akkauntingizni yarating:
 ```powershell
 .\.venv\Scripts\python.exe manage.py createsuperuser --settings=config.settings.development
 ```
+
+### Birinchi foydalanish
+
+1. Yangi klonda foydalanuvchi, kategoriya va buyurtmalar bo‘lmaydi. Yuqoridagi
+   buyruq bilan administrator yarating, `/django-admin/` panelida xizmat
+   kategoriyalarini qo‘shing.
+2. Saytda buyurtmachi sifatida ro‘yxatdan o‘ting va ish e’lon qiling. Akkaunt SMS’siz
+   darhol faollashadi.
+3. Boshqa brauzer yoki maxfiy oynada ishchi akkauntini yarating. Profil va xizmat
+   kategoriyalarini to‘ldiring, e’longa ariza yuboring.
+4. Buyurtmachi arizani qabul qilgach, ishtirokchilar chatdan foydalanadi. Ish
+   tugagach, yakunlash va sharh qoldirish jarayonini tekshiring.
+
+Umumiy standart login/parol yo‘q. O‘z akkauntlaringizni yarating. Faqat o‘zingizning
+lokal SQLite bazangizni misollar bilan to‘ldirish kerak bo‘lsa, backend papkasida
+quyidagi **ixtiyoriy** buyruqni bajaring:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py seed_marketplace --settings=config.settings.development
+```
+
+Bu buyruq sun’iy kategoriyalar, profillar va ishlarni qo‘shadi; yaratilgan
+foydalanuvchilarda kirish uchun yaroqli parol bo‘lmaydi. Saytda o‘z akkauntingizni
+alohida yarating. Bu usul Docker’dagi PostgreSQL muhiti uchun mo‘ljallanmagan.
+
+### Qayta ishga tushirish va tez-tez uchraydigan muammolar
+
+- To‘xtatish: backend va frontend terminallarida `Ctrl+C`. Qayta ochishda faqat
+  ikkala serverni ishga tushiring; paketlarni qayta o‘rnatish yoki seed qilish shart emas.
+- `python` yoki `npm` topilmasa, kerakli versiyalarni o‘rnating va terminalni qayta oching.
+- `npm ci` uchun Node.js 24 ishlating. Python buyruqlarida `backend/.venv` ichidagi
+  interpreterdan foydalaning; virtual muhitni aktivlashtirish majburiy emas.
+- API bilan aloqa bo‘lmasa, backend `127.0.0.1:8001` da ishlayotganini tekshiring.
+  Frontend uchun `http://127.0.0.1:5173` ni oching va ikkala terminalni ochiq qoldiring.
+- `no such table` xatosida SQLite uchun yuqoridagi `migrate` buyrug‘ini bajaring.
+- Kategoriyalar bo‘sh bo‘lsa, administrator orqali qo‘shing yoki o‘z lokal
+  SQLite bazangizda ixtiyoriy namunaviy ma’lumot buyrug‘idan foydalaning.
+- `backend/.local/` ichida baza va media saqlanadi; uni o‘chirish lokal
+  ma’lumotlarni yo‘qotadi. `.env` va shaxsiy fayllarni GitHub’ga yuklamang.
+
+### Docker va qo‘shimcha hujjatlar
+
+Yuqoridagi SQLite muhiti bilan Docker’dagi `http://127.0.0.1:8080` muhiti
+alohida bazalardan foydalanadi; akkauntlar avtomatik ko‘chmaydi. Docker operatori
+o‘z maxfiy sozlamalari va aniq xizmat ruxsatlarini tayyorlashi kerak. GitHub’dan
+klonlash mavjud operator ruxsatlarini bermaydi.
+
+- [Docker lokal muhiti](deploy/LOCAL.md), [kundalik foydalanish](deploy/DAILY_USE.md).
+- [Lokal xavfsizlik holati](deploy/LOCAL_SAFETY.md), [backup va recovery](deploy/LOCAL_OPERATIONS.md).
+- [Production konfiguratsiyasi](PRODUCTION_MVP.md), [deploy runbook](deploy/RUNBOOK.md).
+- [Bajarilgan ishlar hisoboti](DEMO_TO_PRODUCTION_MVP_REPORT_UZ.md) va
+  [Sprint 1](SPRINT_1.md), [Sprint 2](SPRINT_2.md), [Sprint 3](SPRINT_3.md).
+
+Tarixiy hisobotlardagi test sonlari va sanalar o‘sha tekshiruvlarga tegishli;
+eng so‘nggi natijani GitHub Actions’da tekshiring. GitHub’ga push qilish serverga
+deploy qilmaydi; production TLS, hosting va tashqi integratsiyalar alohida tekshiriladi.
 
 ### Tekshiruvlar
 
@@ -234,11 +344,19 @@ http://127.0.0.1:8001.
 Нужны Python 3.14 и Node.js 24 LTS. Откройте PowerShell в папке клонированного
 проекта и выполните:
 
+Сначала клонируйте проект (для private-репозитория нужен доступ):
+
+```powershell
+git clone https://github.com/JaloliddinAbdusoatov/ishchi-marketplace.git
+Set-Location ishchi-marketplace
+```
+
 ```powershell
 python -m venv backend\.venv
 .\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 if (!(Test-Path backend\.env)) { Copy-Item backend\.env.example backend\.env }
 if (!(Test-Path frontend\.env)) { Copy-Item frontend\.env.example frontend\.env }
+.\backend\.venv\Scripts\python.exe -c "from pathlib import Path; from django.core.management.utils import get_random_secret_key; p=Path('backend/.env'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('DJANGO_SECRET_KEY=\n', 'DJANGO_SECRET_KEY='+get_random_secret_key()+'\n'), encoding='utf-8')"
 Set-Location frontend
 npm ci
 ```
@@ -274,6 +392,16 @@ npm run dev
 ```powershell
 .\.venv\Scripts\python.exe manage.py createsuperuser --settings=config.settings.development
 ```
+
+### Первое использование
+
+В новом клоне нет пользователей, категорий и заказов. Создайте категории через
+Django admin и зарегистрируйте собственные аккаунты заказчика и работника.
+Общего логина/пароля нет. Регистрация активирует аккаунт сразу; проверка телефона
+и KYC необязательны. SMS по умолчанию отключены; восстановление пароля через SMS
+требует настоящего провайдера. Платежи отключены. Docker-инструкции для отдельной
+локальной среды: [LOCAL.md](deploy/LOCAL.md); настройки и разрешения прежнего
+оператора не переносятся в новый клон.
 
 ### Проверки
 

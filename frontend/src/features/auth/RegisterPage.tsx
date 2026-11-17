@@ -17,8 +17,8 @@ import { extractApiErrorMessage } from "@/lib/utils";
 const schema = z
   .object({
     phone_number: z.string().regex(/^\+998[0-9]{9}$/, "phoneInvalid"),
-    full_name: z.string().min(2, "requiredField"),
-    email: z.string().email().optional().or(z.literal("")),
+    full_name: z.string().trim().min(2, "requiredField"),
+    email: z.string().trim().email("emailInvalid").optional().or(z.literal("")),
     password: z.string().min(8, "passwordMin"),
     confirm_password: z.string(),
     role: z.enum(["WORKER", "EMPLOYER"]),
@@ -76,7 +76,7 @@ export function RegisterPage() {
         district: values.district || "",
       });
       setSession(res.data.user, res.data.tokens);
-      toast.success(res.message || t("auth.registerTitle"));
+      toast.success(t("auth.registerSuccess"));
       navigate(res.data.user.role === "EMPLOYER" ? "/employer" : "/worker", { replace: true });
     } catch (err) {
       toast.error(extractApiErrorMessage(err));
@@ -139,7 +139,14 @@ export function RegisterPage() {
                   <Label htmlFor="reg-email">
                     {t("auth.emailLabel")} ({t("common.optional")})
                   </Label>
-                  <Input id="reg-email" type="email" {...register("email")} />
+                  <Input id="reg-email" type="email" autoComplete="email"
+                    aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? "reg-email-error" : undefined}
+                    {...register("email")} />
+                  {errors.email && (
+                    <p id="reg-email-error" role="alert" className="text-xs text-destructive">
+                      {t("validation.emailInvalid")}
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -39,10 +39,10 @@ export function LoginPage() {
     try {
       const res = await authApi.login(values);
       setSession(res.data.user, res.data.tokens);
-      toast.success(res.message || t("auth.loginTitle"));
-      const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
-      if (from && from !== "/login") {
-        navigate(from, { replace: true });
+      toast.success(t("auth.loginSuccess"));
+      const from = (location.state as { from?: { pathname: string; search?: string; hash?: string } } | null)?.from;
+      if (from?.pathname.startsWith("/") && !from.pathname.startsWith("//") && from.pathname !== "/login") {
+        navigate({ pathname: from.pathname, search: from.search, hash: from.hash }, { replace: true });
         return;
       }
       const u = res.data.user;

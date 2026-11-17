@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -13,18 +13,19 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/shared/ErrorState";
 import { categoriesApi, ordersApi } from "@/services/api";
 import { extractApiErrorMessage, getLocalizedCategoryName } from "@/lib/utils";
 
 const schema = z.object({
   category: z.string().min(1, "requiredField"),
-  title: z.string().min(3, "requiredField"),
-  description: z.string().min(10, "requiredField"),
+  title: z.string().trim().min(3, "requiredField"),
+  description: z.string().trim().min(10, "requiredField"),
   budget: z.coerce.number().positive("positiveNumber"),
   capacity: z.coerce.number().int().min(1).max(50).default(1),
   budget_type: z.enum(["FIXED", "HOURLY", "NEGOTIABLE"]),
   work_type: z.enum(["ONSITE", "REMOTE", "HYBRID"]),
-  location: z.string().min(2, "requiredField"),
+  location: z.string().trim().min(2, "requiredField"),
   district: z.string().optional(),
   address: z.string().optional(),
   start_date: z.string().optional(),
@@ -41,6 +42,9 @@ export function EmployerOrderFormPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [savedOrderId, setSavedOrderId] = useState<string | null>(null);
+  const [imageUploadFailed, setImageUploadFailed] = useState(false);
+  const loadedOrderId = useRef<string | null>(null);
 
   const catsQuery = useQuery({
     queryKey: ["categories", "all"],
@@ -57,7 +61,7 @@ export function EmployerOrderFormPage() {
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<z.input<typeof schema>, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -70,7 +74,7 @@ export function EmployerOrderFormPage() {
   });
 
   useEffect(() => {
-    if (orderQuery.data) {
+    if (orderQuery.data && (loadedOrderId.current !== id || !isDirty)) {
       const o = orderQuery.data;
       reset({
         category: o.category,
@@ -87,8 +91,9 @@ export function EmployerOrderFormPage() {
         deadline: o.deadline || "",
         status: o.status === "DRAFT" ? "DRAFT" : "PUBLISHED",
       });
+      loadedOrderId.current = id || null;
     }
-  }, [orderQuery.data, reset]);
+  }, [orderQuery.data, reset, id, isDirty]);
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -98,17 +103,27 @@ export function EmployerOrderFormPage() {
         start_date: values.start_date || null,
         deadline: values.deadline || null,
       };
-      const saved = isEdit
-        ? await ordersApi.update(id!, payload)
+      const targetId = id || savedOrderId;
+      const saved = targetId
+        ? await ordersApi.update(targetId, payload)
         : await ordersApi.create(payload);
+      // Creation succeeded even if the independent image request fails.
+      setSavedOrderId(saved.id);
+      void queryClient.invalidateQueries({ queryKey: ["orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "employer"] });
 
       if (imageFile) {
-        await ordersApi.uploadImage(saved.id, imageFile);
+        try {
+          await ordersApi.uploadImage(saved.id, imageFile);
+        } catch {
+          setImageUploadFailed(true);
+          toast.error(t("employer.imageUploadFailed"));
+          return;
+        }
       }
 
       toast.success(t("common.save"));
-      void queryClient.invalidateQueries({ queryKey: ["orders"] });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard", "employer"] });
+      void queryClient.invalidateQueries({ queryKey: ["order", saved.id] });
       navigate(`/orders/${saved.id}`);
     } catch (err) {
       toast.error(extractApiErrorMessage(err));
@@ -116,6 +131,7 @@ export function EmployerOrderFormPage() {
   };
 
   if (isEdit && orderQuery.isLoading) return <Skeleton className="h-96" />;
+  if (isEdit && orderQuery.isError) return <ErrorState onRetry={() => void orderQuery.refetch()} />;
 
   return (
     <Card className="max-w-3xl">
@@ -123,24 +139,25 @@ export function EmployerOrderFormPage() {
         <CardTitle>{isEdit ? t("employer.editOrderTitle") : t("employer.createOrderTitle")}</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          {imageUploadFailed && <p role="alert" className="rounded-lg border border-destructive p-3 text-sm text-destructive">{t("employer.imageUploadFailed")}</p>}
           <div className="space-y-1.5">
-            <Label htmlFor="ord-capacity">{t("employer.capacityLabel", { defaultValue: "Workers needed (1–50)" })}</Label>
+            <Label htmlFor="ord-capacity">{t("employer.capacityLabel")}</Label>
             <Input id="ord-capacity" type="number" min={1} max={50} {...register("capacity")} />
-            {errors.capacity && <p role="alert">{t("validation.positiveNumber")}</p>}
+            {errors.capacity && <p role="alert" className="text-xs text-destructive">{t("validation.capacityRange")}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ord-title">{t("employer.orderTitleLabel")}</Label>
             <Input id="ord-title" {...register("title")} />
             {errors.title && (
-              <p className="text-xs text-destructive">{t("validation.requiredField")}</p>
+              <p className="text-xs text-destructive">{t("validation.minChars", { min: 3 })}</p>
             )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="ord-cat">{t("marketplace.category")}</Label>
-              <NativeSelect id="ord-cat" {...register("category")}>
+              <NativeSelect id="ord-cat" disabled={catsQuery.isPending || catsQuery.isError} {...register("category")}>
                 <option value="">-- {t("marketplace.category")} --</option>
                 {(catsQuery.data?.results || []).map((c) => (
                   <option key={c.id} value={c.id}>
@@ -148,6 +165,8 @@ export function EmployerOrderFormPage() {
                   </option>
                 ))}
               </NativeSelect>
+              {catsQuery.isError && <ErrorState onRetry={() => void catsQuery.refetch()} />}
+              {catsQuery.isSuccess && !catsQuery.data.results.length && <p role="status" className="text-sm text-muted-foreground">{t("employer.noCategories")}</p>}
               {errors.category && (
                 <p className="text-xs text-destructive">{t("validation.requiredField")}</p>
               )}
@@ -175,7 +194,7 @@ export function EmployerOrderFormPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="ord-budget">{t("employer.budgetLabel")}</Label>
-              <Input id="ord-budget" type="number" {...register("budget")} />
+              <Input id="ord-budget" type="number" step="0.01" min="0.01" inputMode="decimal" {...register("budget")} />
               {errors.budget && (
                 <p className="text-xs text-destructive">{t("validation.positiveNumber")}</p>
               )}
@@ -204,6 +223,7 @@ export function EmployerOrderFormPage() {
             <div className="space-y-1.5">
               <Label htmlFor="ord-loc">{t("marketplace.location")}</Label>
               <Input id="ord-loc" {...register("location")} />
+              {errors.location && <p role="alert" className="text-xs text-destructive">{t("validation.requiredField")}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ord-dist">{t("marketplace.district")}</Label>
@@ -225,18 +245,18 @@ export function EmployerOrderFormPage() {
               <Input id="ord-dead" type="date" {...register("deadline")} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ord-img">Image ({t("common.optional")})</Label>
+              <Label htmlFor="ord-img">{t("employer.imageLabel")} ({t("common.optional")})</Label>
               <Input
                 id="ord-img"
                 type="file"
-                accept="image/*"
+                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                 onChange={(e) => setImageFile(e.target.files?.[0] || null)}
               />
             </div>
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || catsQuery.isPending || catsQuery.isError || !catsQuery.data?.results.length}>
               {isSubmitting ? t("common.loading") : t("common.save")}
             </Button>
             <Button type="button" variant="outline" onClick={() => navigate(-1)}>

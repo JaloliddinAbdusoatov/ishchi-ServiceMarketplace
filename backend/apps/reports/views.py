@@ -6,6 +6,8 @@ from rest_framework.views import APIView
 from apps.accounts.models import User
 from apps.accounts.permissions import IsActiveAccount
 from apps.chat.models import Message
+from apps.chat.services import ChatService
+from apps.orders.access import visible_orders
 from apps.common.exceptions import BusinessRuleViolation
 from apps.common.pagination import StandardResultsSetPagination
 from apps.common.responses import success_response
@@ -50,10 +52,11 @@ class ReportListCreateView(APIView):
                 raise BusinessRuleViolation("You cannot report yourself.", code="cannot_report_self")
             kwargs["target_user"] = target_user
         elif target_type == ReportTargetType.ORDER:
-            target_order = get_object_or_404(ServiceOrder, id=target_id)
+            target_order = get_object_or_404(visible_orders(request.user), id=target_id)
             kwargs["target_order"] = target_order
         elif target_type == ReportTargetType.MESSAGE:
             target_msg = get_object_or_404(Message, id=target_id)
+            ChatService.assert_conversation_access(target_msg.conversation, request.user)
             kwargs["target_message"] = target_msg
 
         report = Report.objects.create(**kwargs)

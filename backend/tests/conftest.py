@@ -1,7 +1,7 @@
 from decimal import Decimal
 import factory
 import pytest
-from django.core.cache import cache
+from django.core.cache import cache, caches
 from rest_framework.test import APIClient
 
 from apps.accounts.models import AccountStatus, User, UserRole
@@ -14,9 +14,9 @@ from apps.profiles.models import EmployerProfile, EmployerType, VerificationStat
 def pytest_configure(config):
     """Refuse unsafe environment overrides before any test database is created."""
     from django.conf import settings
-    for config in settings.DATABASES.values():
-        if config["ENGINE"] != "django.db.backends.sqlite3" or "ishchi_test" in str(config["NAME"]).lower():
-            raise pytest.UsageError("Teacher demo tests require --ds=config.settings.testing (SQLite only).")
+    for database in settings.DATABASES.values():
+        if database["ENGINE"] != "django.db.backends.sqlite3" or "ishchi_test" in str(database["NAME"]).lower():
+            raise pytest.UsageError("Unit tests require config.settings.testing; use pgtests separately for PostgreSQL.")
 
 
 class UserFactory(factory.django.DjangoModelFactory):
@@ -53,23 +53,18 @@ class CategoryFactory(factory.django.DjangoModelFactory):
     is_active = True
 
 
-_redis_available = None
-
 @pytest.fixture(autouse=True)
 def clear_redis_cache():
-    global _redis_available
-    if _redis_available is not False:
-        try:
-            cache.clear()
-            _redis_available = True
-        except Exception:
-            _redis_available = False
-    yield
-    if _redis_available is True:
-        try:
-            cache.clear()
-        except Exception:
-            _redis_available = False
+    # This shared fixture must never FLUSH an external cache or hide failures.
+    from django.core.cache.backends.locmem import LocMemCache
+    local_cache = caches["default"]
+    if not isinstance(local_cache, LocMemCache):
+        raise pytest.UsageError("Shared SQLite/PostgreSQL fixtures require process-local cache.")
+    local_cache.clear()
+    try:
+        yield
+    finally:
+        local_cache.clear()
 
 
 @pytest.fixture

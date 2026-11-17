@@ -1,0 +1,10 @@
+# Not installed/enabled by this sprint.
+[Unit]
+Description=ISHCHI media erasure retry schedule
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=ishchi-media-erasure.service
+[Install]
+WantedBy=timers.target

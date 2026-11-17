@@ -71,7 +71,7 @@ class UserAccountUpdateSerializer(serializers.ModelSerializer):
 
 class RegisterSerializer(serializers.Serializer):
     phone_number = serializers.RegexField(regex=UZ_PHONE_REGEX, max_length=20)
-    password = serializers.CharField(write_only=True, min_length=8)
+    password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
     full_name = serializers.CharField(max_length=150)
     role = serializers.ChoiceField(choices=[UserRole.WORKER, UserRole.EMPLOYER], default=UserRole.WORKER)
     email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
@@ -91,7 +91,7 @@ class RegisterSerializer(serializers.Serializer):
 
 class LoginSerializer(serializers.Serializer):
     phone_number = serializers.RegexField(regex=UZ_PHONE_REGEX, max_length=20)
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
 
 
 class LogoutSerializer(serializers.Serializer):
@@ -109,8 +109,8 @@ class VerifyOTPSerializer(serializers.Serializer):
 
 
 class ChangePasswordSerializer(serializers.Serializer):
-    old_password = serializers.CharField(write_only=True)
-    new_password = serializers.CharField(write_only=True, min_length=8)
+    old_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
@@ -120,7 +120,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 class PasswordResetConfirmSerializer(serializers.Serializer):
     phone_number = serializers.RegexField(regex=UZ_PHONE_REGEX, max_length=20)
     otp = serializers.RegexField(regex=r"^[0-9]{6}$", max_length=6)
-    new_password = serializers.CharField(write_only=True, min_length=8)
+    new_password = serializers.CharField(write_only=True, min_length=8, trim_whitespace=False)
 
 
 class EnableRoleSerializer(serializers.Serializer):
@@ -130,7 +130,7 @@ class EnableRoleSerializer(serializers.Serializer):
 
 
 class DeleteAccountSerializer(serializers.Serializer):
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
     confirm = serializers.BooleanField()
     reason = serializers.CharField(required=False, allow_blank=True, default="")
 

@@ -22,6 +22,12 @@ class OTPService:
     """Redis-backed OTP generation, cooldown, rate limiting, and atomic verification."""
 
     @staticmethod
+    def _account_binding(phone_number):
+        from apps.accounts.models import User
+        return User.objects.filter(phone_number=phone_number, is_active=True,
+            is_anonymized=False, account_status="ACTIVE").values_list("id", "token_version").first()
+
+    @staticmethod
     def _hash_otp(phone_number: str, purpose: str, code: str) -> str:
         key = settings.SECRET_KEY.encode("utf-8")
         msg = f"{purpose}:{phone_number}:{code}".encode("utf-8")
@@ -99,6 +105,7 @@ class OTPService:
             "created_at": now,
             "expires_at": now + exp_seconds,
             "resend_available_at": now + cooldown_seconds,
+            "account_binding": cls._account_binding(phone_number),
         }
 
         cache.set(session_key, session_data, timeout=exp_seconds)
@@ -132,6 +139,10 @@ class OTPService:
         session_key = f"otp_session:{purpose}:{phone_number}"
         session_data = cache.get(session_key)
         if not session_data:
+            return False, "otp_expired_or_invalid", "Verification code has expired or was not requested."
+        binding = session_data.get("account_binding")
+        if not binding or binding != cls._account_binding(phone_number):
+            cache.delete(session_key)
             return False, "otp_expired_or_invalid", "Verification code has expired or was not requested."
 
         now = time.time()

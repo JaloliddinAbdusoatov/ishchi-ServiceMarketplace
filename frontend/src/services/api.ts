@@ -110,7 +110,7 @@ export const authApi = {
     return res.data;
   },
   verifyOtp: async (payload: { phone_number: string; otp: string }) => {
-    const res = await apiClient.post<ApiSuccessResponse<{ user: UserSummary; tokens: AuthTokens }>>(
+    const res = await apiClient.post<ApiSuccessResponse<{ user: UserSummary }>>(
       "/auth/otp/verify/",
       payload
     );

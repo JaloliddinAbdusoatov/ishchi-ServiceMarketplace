@@ -71,6 +71,9 @@ class WorkerProfileSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not (user and user.is_authenticated and (user.pk == instance.user_id or user.is_admin_user)):
+            data["verification_notes"] = ""
         if not (request and getattr(request.user, "is_authenticated", False)):
             data["phone_number"] = None
             data["verification_notes"] = ""

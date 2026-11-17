@@ -1,0 +1,17 @@
+# Use only AFTER separately approved ownership/role changes and private credential
+# creation. Does not change the working runtime login or its password.
+services:
+  migrate:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local_migration
+      DB_PASSWORD_FILE: /run/secrets/app_password
+      DB_AUTHORIZATION_FILE: /run/secrets/db_approval
+    secrets:
+      - {source: django_key, target: django_key}
+      - {source: local_migration_password, target: app_password}
+      - {source: work_redis_password, target: redis_password}
+      - {source: local_migration_approval, target: db_approval}
+      - {source: work_redis_approval, target: redis_approval}
+secrets:
+  local_migration_password: {file: '${LOCAL_SECRETS_DIR:?}/local_migration_password'}
+  local_migration_approval: {file: '${LOCAL_SECRETS_DIR:?}/local-migration-authorization.json'}

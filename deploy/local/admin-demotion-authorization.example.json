@@ -1,0 +1,18 @@
+{
+  "account": "489124fe-ae1b-4551-8495-9f148c46490b",
+  "owner": "319cb674-96bc-4de3-bf08-e6c4462500f7",
+  "approved_by": "",
+  "expires_at": "",
+  "operations": [
+    "demote_exact_synthetic_admin",
+    "clear_permission_memberships",
+    "revoke_exact_account_sessions",
+    "append_admin_audit"
+  ],
+  "target": {
+    "host": "postgres-work",
+    "port": "5432",
+    "dbname": "ishchi_marketplace_local",
+    "user": "ishchi_local_app"
+  }
+}

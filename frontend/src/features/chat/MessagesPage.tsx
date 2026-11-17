@@ -34,12 +34,24 @@ export function MessagesPage() {
   const user = useAuthStore((s) => s.user);
 
   const selectedId = searchParams.get("conversation") || "";
-  const [content, setContent] = useState("");
-  const [attachment, setAttachment] = useState<File | null>(null);
+  const requestedPage = Number(searchParams.get("message_page") || "1");
+  const messagesPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const [drafts, setDrafts] = useState<Record<string, { content: string; attachment: File | null }>>({});
+  const content = drafts[selectedId]?.content || "";
+  const attachment = drafts[selectedId]?.attachment || null;
+  const setContent = (value: string) => setDrafts((current) => ({
+    ...current, [selectedId]: { content: value, attachment: current[selectedId]?.attachment || null },
+  }));
+  const setAttachment = (value: File | null) => setDrafts((current) => ({
+    ...current, [selectedId]: { content: current[selectedId]?.content || "", attachment: value },
+  }));
   const [reportMsgId, setReportMsgId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const readAttempt = useRef("");
+  useEffect(() => {
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [selectedId]);
 
   const conversationsQuery = useQuery({
     queryKey: ["chat", "conversations"],
@@ -57,20 +69,21 @@ export function MessagesPage() {
   }, [selectedId, conversations, setSearchParams]);
 
   const messagesQuery = useQuery({
-    queryKey: ["chat", "messages", selectedId],
-    queryFn: () => chatApi.listMessages(selectedId, { page_size: 100 }),
+    queryKey: ["chat", "messages", selectedId, messagesPage],
+    queryFn: () => chatApi.listMessages(selectedId, { page_size: 100, page: messagesPage, ordering: "-created_at" }),
     enabled: Boolean(selectedId),
-    refetchInterval: 5000,
+    refetchInterval: messagesPage === 1 ? 5000 : false,
     retry: false,
   });
 
-  const messages = messagesQuery.data?.results || [];
+  const messages = (messagesQuery.data?.results || []).slice().reverse();
+  const latestVisibleMessage = messages[messages.length - 1]?.id;
 
   const { mutate: markRead } = useMutation({
     mutationFn: (convId: string) => chatApi.markRead(convId),
     onSuccess: (_, convId) => {
-      queryClient.setQueryData<ApiPaginatedResponse<ChatMessage>>(
-        ["chat", "messages", convId],
+      queryClient.setQueriesData<ApiPaginatedResponse<ChatMessage>>(
+        { queryKey: ["chat", "messages", convId] },
         (cached) => cached && ({ ...cached, results: cached.results.map((message) =>
           message.sender_id !== user?.id ? { ...message, is_read: true } : message
         ) }),
@@ -93,18 +106,22 @@ export function MessagesPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, selectedId]);
+  }, [latestVisibleMessage, selectedId, messagesPage]);
 
   const sendMutation = useMutation({
-    mutationFn: () => {
-      if (!selectedId) throw new Error("No conversation selected");
-      return chatApi.sendMessage(selectedId, { content: content.trim(), attachment });
-    },
-    onSuccess: () => {
-      setContent("");
-      setAttachment(null);
+    mutationFn: ({ conversationId, content, attachment }: { conversationId: string; content: string; attachment: File | null }) =>
+      chatApi.sendMessage(conversationId, { content, attachment }),
+    onSuccess: (_, sent) => {
+      setDrafts((current) => {
+        // A completed send must not discard a newer draft, including in another chat.
+        const draft = current[sent.conversationId];
+        if (draft?.content.trim() !== sent.content || draft?.attachment !== sent.attachment) return current;
+        const next = { ...current };
+        delete next[sent.conversationId];
+        return next;
+      });
       if (fileInputRef.current) fileInputRef.current.value = "";
-      void queryClient.invalidateQueries({ queryKey: ["chat", "messages", selectedId] });
+      void queryClient.invalidateQueries({ queryKey: ["chat", "messages", sent.conversationId] });
       void queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
     },
     onError: (err) => toast.error(extractApiErrorMessage(err)),
@@ -126,8 +143,8 @@ export function MessagesPage() {
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() && !attachment) return;
-    sendMutation.mutate();
+    if (!selectedId || sendMutation.isPending || (!content.trim() && !attachment)) return;
+    sendMutation.mutate({ conversationId: selectedId, content: content.trim(), attachment });
   };
 
   if (conversationsQuery.isLoading) return <Skeleton className="h-[520px]" />;
@@ -157,8 +174,8 @@ export function MessagesPage() {
           }
         />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[320px_1fr] min-h-[640px] lg:h-[640px]">
-          <Card className="flex flex-col overflow-hidden">
+        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)] lg:h-[640px]">
+          <Card className="flex min-w-0 max-h-60 flex-col overflow-hidden lg:max-h-none">
             <div className="border-b px-4 py-3 text-sm font-semibold">
               {t("nav.messages")} ({conversations.length})
             </div>
@@ -189,7 +206,7 @@ export function MessagesPage() {
                     </p>
                     <p className="mt-1 truncate text-xs text-muted-foreground">
                       {conv.last_message?.content ||
-                        (conv.last_message?.has_attachment ? "Attachment" : "—")}
+                        (conv.last_message?.has_attachment ? t("chat.attachment") : "—")}
                     </p>
                   </button>
                 );
@@ -197,7 +214,7 @@ export function MessagesPage() {
             </div>
           </Card>
 
-          <Card className="flex flex-col overflow-hidden">
+          <Card className="flex min-w-0 h-[70dvh] min-h-[360px] max-h-[640px] flex-col overflow-hidden lg:h-full">
             {!selectedId ? (
               <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
                 {t("chat.selectConversation")}
@@ -224,6 +241,19 @@ export function MessagesPage() {
                   </div>
                 </div>
 
+                {messagesQuery.data && messagesQuery.data.total_pages > 1 && (
+                  <nav aria-label={t("chat.history")} className="flex flex-wrap justify-between gap-2 border-b px-3 py-2">
+                    <Button type="button" size="sm" variant="outline"
+                      disabled={messagesPage >= messagesQuery.data.total_pages}
+                      onClick={() => setSearchParams({ conversation: selectedId, message_page: String(messagesPage + 1) })}>
+                      {t("chat.olderMessages")}
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" disabled={messagesPage === 1}
+                      onClick={() => setSearchParams({ conversation: selectedId, message_page: String(messagesPage - 1) })}>
+                      {t("chat.newerMessages")}
+                    </Button>
+                  </nav>
+                )}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/20">
                   {messagesQuery.isLoading ? (
                     <Skeleton className="h-40" />
@@ -257,7 +287,7 @@ export function MessagesPage() {
                                 {msg.sender_name}
                               </p>
                             )}
-                            {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
+                            {msg.content && <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{msg.content}</p>}
                             {attachmentUrl && (
                               <button
                                 type="button"
@@ -269,7 +299,7 @@ export function MessagesPage() {
                                 }`}
                               >
                                 <FileIcon className="h-3.5 w-3.5" />
-                                <span>Attachment</span>
+                                <span>{t("chat.attachment")}</span>
                               </button>
                             )}
                             <div
@@ -314,6 +344,7 @@ export function MessagesPage() {
                           if (fileInputRef.current) fileInputRef.current.value = "";
                         }}
                         className="text-muted-foreground hover:text-foreground"
+                        aria-label={t("chat.removeAttachment")}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -346,6 +377,7 @@ export function MessagesPage() {
                       type="submit"
                       disabled={sendMutation.isPending || (!content.trim() && !attachment)}
                       className="gap-1.5"
+                      aria-label={t("chat.send")}
                     >
                       <Send className="h-4 w-4" />
                       <span className="hidden sm:inline">{t("chat.send")}</span>

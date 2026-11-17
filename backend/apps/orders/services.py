@@ -29,6 +29,8 @@ class OrderService:
             raise ConflictError("Order capacity is full.", code="order_already_assigned")
         if not worker.user.is_active or worker.user.is_anonymized or worker.user.account_status != "ACTIVE":
             raise ForbiddenActionError("Worker account is not active.", code="worker_not_active")
+        if not worker.is_available:
+            raise ConflictError("Worker is not currently available for hiring.", code="worker_unavailable")
         if order.assigned_worker_id:
             order.assigned_workers.add(order.assigned_worker)
         else:

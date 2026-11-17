@@ -15,6 +15,7 @@ from apps.favorites.serializers import (
     FavoriteWorkerSerializer,
 )
 from apps.orders.models import ServiceOrder
+from apps.orders.access import visible_orders
 from apps.profiles.models import WorkerProfile
 
 
@@ -26,6 +27,7 @@ class FavoriteWorkerListCreateView(APIView):
         qs = FavoriteWorker.objects.filter(
             user=request.user,
             worker__user__is_active=True,
+            worker__user__account_status="ACTIVE",
             worker__user__is_anonymized=False,
         ).select_related("worker__user")
         paginator = StandardResultsSetPagination()
@@ -45,6 +47,7 @@ class FavoriteWorkerListCreateView(APIView):
             WorkerProfile,
             id=serializer.validated_data["worker"],
             user__is_active=True,
+            user__account_status="ACTIVE",
             user__is_anonymized=False,
         )
         if str(worker.user_id) == str(request.user.id):
@@ -72,7 +75,7 @@ class FavoriteOrderListCreateView(APIView):
 
     @extend_schema(summary="List Favorite Orders", responses={200: FavoriteOrderSerializer(many=True)}, tags=["Favorites"])
     def get(self, request):
-        qs = FavoriteOrder.objects.filter(user=request.user).select_related("order__employer", "order__category")
+        qs = FavoriteOrder.objects.filter(user=request.user, order__in=visible_orders(request.user)).select_related("order__employer", "order__category")
         paginator = StandardResultsSetPagination()
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(FavoriteOrderSerializer(page, many=True, context={"request": request}).data)
@@ -86,7 +89,7 @@ class FavoriteOrderListCreateView(APIView):
     def post(self, request):
         serializer = FavoriteOrderCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        order = get_object_or_404(ServiceOrder, id=serializer.validated_data["order"])
+        order = get_object_or_404(visible_orders(request.user), id=serializer.validated_data["order"])
         fav, created = FavoriteOrder.objects.get_or_create(user=request.user, order=order)
         return success_response(
             data=FavoriteOrderSerializer(fav, context={"request": request}).data,

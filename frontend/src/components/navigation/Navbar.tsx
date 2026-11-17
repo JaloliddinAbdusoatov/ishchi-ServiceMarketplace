@@ -35,6 +35,7 @@ export function Navbar() {
     } catch {
       // Clear local session regardless of server response
     } finally {
+      setMobileOpen(false);
       clearSession();
       navigate("/login");
     }
@@ -49,20 +50,20 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-card/90 backdrop-blur-md">
-      <div className="container flex h-16 items-center justify-between gap-4">
+      <div className="container flex min-h-16 flex-wrap items-center justify-between gap-2 py-2 sm:gap-4">
         <div className="flex items-center gap-6">
-          <Link to="/" className="flex items-center gap-2.5">
+          <Link to="/" aria-label={t("brand.name")} className="flex shrink-0 items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-sm">
               I
             </div>
-            <div>
+            <div className="hidden min-[360px]:block">
               <span className="text-lg font-extrabold tracking-tight text-foreground">
                 {t("brand.name")}
               </span>
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
+          <nav className="hidden xl:flex items-center gap-1 text-sm font-medium">
             <NavLink
               to="/marketplace?tab=orders"
               className={({ isActive }) =>
@@ -95,7 +96,7 @@ export function Navbar() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <LanguageSwitcher />
 
           <Button
@@ -108,7 +109,7 @@ export function Navbar() {
           </Button>
 
           {user ? (
-            <div className="hidden md:flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2">
               {user.role !== "ADMIN" && user.is_worker && user.is_employer && (
                 <div className="flex items-center rounded-lg border bg-muted p-0.5 text-xs">
                   <button
@@ -167,7 +168,7 @@ export function Navbar() {
               </Button>
             </div>
           ) : (
-            <div className="hidden md:flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2">
               <Link to="/login">
                 <Button variant="ghost" size="sm">
                   {t("nav.login")}
@@ -182,9 +183,11 @@ export function Navbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="xl:hidden shrink-0"
             onClick={() => setMobileOpen((v) => !v)}
-            aria-label="Toggle Menu"
+            aria-label={mobileOpen ? t("nav.closeMenu") : t("nav.openMenu")}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-navigation"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
@@ -192,7 +195,7 @@ export function Navbar() {
       </div>
 
       {mobileOpen && (
-        <div className="border-t bg-card px-4 py-4 md:hidden space-y-2">
+        <nav id="mobile-navigation" aria-label={t("nav.mainNavigation")} className="border-t bg-card px-4 py-4 xl:hidden space-y-2">
           <Link
             to="/marketplace?tab=orders"
             onClick={() => setMobileOpen(false)}
@@ -217,6 +220,21 @@ export function Navbar() {
           <div className="border-t pt-2 space-y-2">
             {user ? (
               <>
+                {user.role !== "ADMIN" && user.is_worker && user.is_employer && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["WORKER", "EMPLOYER"] as const).map((workspace) => (
+                      <Button key={workspace} type="button" variant={activeWorkspace === workspace ? "default" : "outline"}
+                        aria-pressed={activeWorkspace === workspace}
+                        onClick={() => {
+                          setActiveWorkspace(workspace);
+                          setMobileOpen(false);
+                          navigate(workspace === "WORKER" ? "/worker" : "/employer");
+                        }}>
+                        {t(workspace === "WORKER" ? "nav.switchToWorker" : "nav.switchToEmployer")}
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 <Link
                   to={dashboardHref}
                   onClick={() => setMobileOpen(false)}
@@ -248,7 +266,7 @@ export function Navbar() {
               </div>
             )}
           </div>
-        </div>
+        </nav>
       )}
     </header>
   );

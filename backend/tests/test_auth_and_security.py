@@ -164,6 +164,9 @@ class TestAuthenticationAndSecurity:
         )
         captured = {}
 
+        from apps.accounts.services.auth_service import generate_jwt_pair
+        api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {generate_jwt_pair(user)['access']}")
+
         class CaptureSMS:
             def send_otp(self, phone_number, code, purpose, expires_in_seconds):
                 captured["code"] = code

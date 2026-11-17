@@ -3,7 +3,7 @@ from django.conf import settings
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import permissions, status
 from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
+from apps.accounts.throttling import SecurityScopedThrottle as ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -24,7 +24,7 @@ from apps.accounts.serializers import (
     UserSummarySerializer,
     VerifyOTPSerializer,
 )
-from apps.accounts.services.auth_service import AuthService, generate_jwt_pair
+from apps.accounts.services.auth_service import AuthService
 from apps.accounts.services.otp_service import OTPPurpose, OTPService
 from apps.common.responses import error_response, success_response
 
@@ -139,6 +139,8 @@ class CustomTokenRefreshView(TokenRefreshView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
     serializer_class = CustomTokenRefreshSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     @extend_schema(
         summary="Rotate JWT Refresh Token",
@@ -160,7 +162,6 @@ class CustomTokenRefreshView(TokenRefreshView):
 
 class SendOTPView(APIView):
     permission_classes = [permissions.AllowAny]
-    authentication_classes = []
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "otp"
 
@@ -174,11 +175,15 @@ class SendOTPView(APIView):
     def post(self, request):
         serializer = SendOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        result = OTPService.send_otp(
-            phone_number=serializer.validated_data["phone_number"],
-            purpose=serializer.validated_data["purpose"],
-            ip_address=_get_client_ip(request),
-        )
+        phone = serializer.validated_data["phone_number"]
+        if serializer.validated_data["purpose"] == OTPPurpose.PASSWORD_RESET:
+            result = AuthService.request_password_reset(phone, ip_address=_get_client_ip(request))
+        else:
+            if not IsActiveAccount().has_permission(request, self):
+                self.permission_denied(request)
+            if phone != request.user.phone_number:
+                self.permission_denied(request)
+            result = OTPService.send_otp(phone, purpose=OTPPurpose.VERIFY_PHONE, ip_address=_get_client_ip(request))
         if not result["success"]:
             return error_response(
                 code=result["error_code"],
@@ -196,8 +201,7 @@ class SendOTPView(APIView):
 
 
 class VerifyOTPView(APIView):
-    permission_classes = [permissions.AllowAny]
-    authentication_classes = []
+    permission_classes = [IsActiveAccount]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"
 
@@ -211,12 +215,14 @@ class VerifyOTPView(APIView):
     def post(self, request):
         serializer = VerifyOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if serializer.validated_data["phone_number"] != request.user.phone_number:
+            self.permission_denied(request)
         user = AuthService.verify_phone_otp(
             phone_number=serializer.validated_data["phone_number"],
             otp=serializer.validated_data["otp"],
         )
         return success_response(
-            data={"user": UserSummarySerializer(user).data, "tokens": generate_jwt_pair(user)},
+            data={"user": UserSummarySerializer(user).data},
             message="Phone number verified successfully.",
         )
 
@@ -281,6 +287,8 @@ class PasswordResetRequestView(APIView):
 class PasswordResetConfirmView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     @extend_schema(
         summary="Confirm Password Reset",

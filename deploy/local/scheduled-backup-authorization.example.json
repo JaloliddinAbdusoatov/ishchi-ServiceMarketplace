@@ -1,0 +1,24 @@
+{
+  "approved_by": "",
+  "expires_at": "",
+  "operations": [
+    "checkpoint_ledger_export",
+    "encrypted_pg_media_backup",
+    "pause_resume_application",
+    "read_migrator_backup"
+  ],
+  "plan": {
+    "source": {
+      "host": "127.0.0.1",
+      "port": 55432,
+      "dbname": "ishchi_marketplace_local",
+      "user": "ishchi_local_migrator",
+      "set_role": "ishchi_local_owner"
+    },
+    "destination": "D:\\Ishchi-backups",
+    "ledger_directory": "C:\\Users\\user\\.codex\\ishchi-local-private\\recovery",
+    "retention_days": 30,
+    "delete_backups": false
+  },
+  "recipient": "age1m8qsjat4g0qsg7jkkh9yvcs465hkq2v5m7nh89xfsrsv5w5jy54qhms4j2"
+}

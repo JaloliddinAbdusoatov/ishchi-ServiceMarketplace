@@ -1,3 +1,4 @@
+import { notificationText } from "@/lib/notificationText";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -120,14 +121,14 @@ export function NotificationsPage() {
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={item.is_read ? "secondary" : "default"}>
-                        {item.event_type}
+                        {notificationText(item, t).event}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {formatDateTime(item.created_at, i18n.language)}
                       </span>
                     </div>
-                    <p className="font-semibold text-sm">{item.title}</p>
-                    <p className="text-sm text-muted-foreground">{item.message}</p>
+                    <p className="font-semibold text-sm">{notificationText(item, t).title}</p>
+                    <p className="text-sm text-muted-foreground">{notificationText(item, t).message}</p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0">

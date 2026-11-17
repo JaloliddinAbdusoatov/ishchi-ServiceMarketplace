@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { DashboardLayout } from "@/app/layouts/DashboardLayout";
 import { PublicLayout } from "@/app/layouts/PublicLayout";
 import { ProtectedRoute } from "@/app/router/ProtectedRoute";
+import { ScrollToTop } from "@/app/router/ScrollToTop";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -157,6 +158,7 @@ function NotFoundPage() {
 export function AppRouter() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           <Route element={<PublicLayout />}>

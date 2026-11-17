@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { KeyRound } from "lucide-react";
@@ -14,15 +14,16 @@ import { extractApiErrorMessage } from "@/lib/utils";
 export function OtpVerifyPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user, setSession } = useAuthStore();
+  const { user, setUser } = useAuthStore();
 
-  const initialPhone =
-    (location.state as { phone?: string } | null)?.phone || user?.phone_number || "+998";
-  const [phone, setPhone] = useState(initialPhone);
+  const phone = user?.phone_number || "+998";
   const [otp, setOtp] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!user) navigate("/login", { replace: true });
+  }, [user, navigate]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -39,7 +40,7 @@ export function OtpVerifyPage() {
     setSubmitting(true);
     try {
       const res = await authApi.verifyOtp({ phone_number: phone, otp });
-      setSession(res.data.user, res.data.tokens);
+      setUser(res.data.user);
       toast.success(res.message || t("auth.otpTitle"));
       const u = res.data.user;
       if (u.role === "ADMIN") navigate("/admin");
@@ -76,7 +77,7 @@ export function OtpVerifyPage() {
           <form onSubmit={handleVerify} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="otp-phone">{t("auth.phoneLabel")}</Label>
-              <Input id="otp-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Input id="otp-phone" value={phone} readOnly />
             </div>
 
             <div className="space-y-1.5">

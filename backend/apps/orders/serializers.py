@@ -1,8 +1,18 @@
 from rest_framework import serializers
+from django.urls import reverse
+from apps.common.validators import validate_image_file
 from apps.orders.models import OrderImage, OrderStatus, ServiceOrder
 
 
 class OrderImageSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(validators=[validate_image_file])
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["image"] = reverse("api-v1:orders-image-content", kwargs={
+            "order_id": instance.order_id, "image_id": instance.pk})
+        return data
+
     class Meta:
         model = OrderImage
         fields = ["id", "image", "caption", "display_order", "created_at"]

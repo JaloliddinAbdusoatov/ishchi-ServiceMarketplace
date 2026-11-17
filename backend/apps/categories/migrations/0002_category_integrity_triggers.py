@@ -82,7 +82,8 @@ SQLITE_TRIGGER_SQL = [
 
 def install_triggers(apps, schema_editor):
     if schema_editor.connection.vendor == "postgresql":
-        schema_editor.execute(TRIGGER_SQL)
+        # PL/pgSQL RAISE placeholders contain literal %, not driver parameters.
+        schema_editor.execute(TRIGGER_SQL, params=None)
     elif schema_editor.connection.vendor == "sqlite":
         for sql in SQLITE_TRIGGER_SQL:
             schema_editor.execute(sql)

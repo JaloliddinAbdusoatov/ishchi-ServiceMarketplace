@@ -1,3 +1,4 @@
+import { notificationText } from "@/lib/notificationText";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -111,9 +112,9 @@ export function NotificationBell() {
                       onClick={() => handleNavigate(item)}
                       className="flex-1 text-left"
                     >
-                      <p className="font-medium text-foreground">{item.title}</p>
+                      <p className="font-medium text-foreground">{notificationText(item, t).title}</p>
                       <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {item.message}
+                        {notificationText(item, t).message}
                       </p>
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         {formatDateTime(item.created_at, i18n.language)}

@@ -50,20 +50,30 @@ if os.environ.get("TRUST_HTTPS_PROXY") == "true":
             ipaddress.ip_address(proxy_ip)
     except ValueError:
         raise ImproperlyConfigured("TRUSTED_PROXY_IPS must contain explicit proxy IP addresses.") from None
-DATABASES = {"default": {
-    "ENGINE": "apps.common.db_backends.postgresql",
-    "NAME": required("DB_NAME"), "USER": required("DB_USER"),
-    "PASSWORD": required("DB_PASSWORD"), "HOST": required("DB_HOST"),
-    "PORT": required("DB_PORT"), "CONN_MAX_AGE": 60,
-    "OPTIONS": {"sslmode": "verify-full", "sslrootcert": required("DB_SSLROOTCERT"), "connect_timeout": 5},
-}}
-from apps.common.db_backends.postgresql.base import validate_target
-validate_target({"dbname": DATABASES["default"]["NAME"], "host": DATABASES["default"]["HOST"], "user": DATABASES["default"]["USER"], "port": DATABASES["default"]["PORT"]})
+from .database import postgres_database
+DATABASES = {"default": postgres_database(os.environ, production=True)}
 DATABASE_ROUTERS = ["apps.common.db_router.PendingSchemaApprovalRouter"]
 REDIS_URL = required("REDIS_URL")
-if urlsplit(REDIS_URL).scheme != "rediss":
-    raise ImproperlyConfigured("Production REDIS_URL requires rediss:// with certificate validation.")
+from apps.common.redis_backend import redis_target
+redis_target(REDIS_URL)
 CACHES["default"]["LOCATION"] = REDIS_URL
+CACHES["default"]["BACKEND"] = "apps.common.redis_backend.RedisCache"
+import re
+REDIS_KEY_PREFIX = os.environ.get("REDIS_KEY_PREFIX", "ishchi:production")
+if not re.fullmatch(r"ishchi:[a-z0-9_-]+", REDIS_KEY_PREFIX):
+    raise ImproperlyConfigured("REDIS_KEY_PREFIX must be an explicit ishchi:<environment> namespace.")
+CACHES["default"]["KEY_PREFIX"] = REDIS_KEY_PREFIX
+CACHES["default"]["OPTIONS"].update({
+    "SOCKET_CONNECT_TIMEOUT": 5, "SOCKET_TIMEOUT": 5,
+    "CONNECTION_POOL_KWARGS": {"ssl_cert_reqs": "required", "ssl_check_hostname": True},
+})
+if os.environ.get("REDIS_SSLROOTCERT"):
+    import ssl
+    try:
+        ssl.create_default_context(cafile=os.environ["REDIS_SSLROOTCERT"])
+    except (OSError, ssl.SSLError):
+        raise ImproperlyConfigured("REDIS_SSLROOTCERT must be a readable valid CA certificate.") from None
+    CACHES["default"]["OPTIONS"]["CONNECTION_POOL_KWARGS"]["ssl_ca_certs"] = os.environ["REDIS_SSLROOTCERT"]
 # Registration does not use SMS. Optional verification/password reset may use HTTP.
 SMS_BACKEND = os.environ.get("SMS_BACKEND", "disabled")
 if SMS_BACKEND not in {"disabled", "http"}:
@@ -80,3 +90,8 @@ SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"] = timedelta(days=7)
 LOGGING["root"]["level"] = "WARNING"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024
+MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
+if not MEDIA_ROOT.is_absolute():
+    raise ImproperlyConfigured("DJANGO_MEDIA_ROOT must be an absolute persistent storage path.")
+# Only dependency-free liveness may use the loopback HTTP probe.
+SECURE_REDIRECT_EXEMPT = [r"^api/v1/health/live/$"]

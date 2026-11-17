@@ -1,46 +1,82 @@
-# Operator template: replace domain, paths and certificate paths before nginx -t.
-# Backend must listen on loopback/private network only.
-limit_req_zone $binary_remote_addr zone=ishchi_auth:10m rate=10r/m;
-server {
-    listen 80;
-    server_name example.uz;
-    return 301 https://$host$request_uri;
-}
-server {
-    listen 443 ssl;
-    server_name example.uz;
-    ssl_certificate /etc/ssl/ishchi/fullchain.pem;
-    ssl_certificate_key /etc/ssl/ishchi/privkey.pem;
+# Full configuration. Replace example.uz only in an authorized host release.
+pid /tmp/nginx.pid;
+error_log /dev/stderr warn;
+worker_processes auto;
+events { worker_connections 512; }
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    server_tokens off;
+    log_format safe escape=json '{"request_id":"$request_id","method":"$request_method","path":"$uri","status":$status,"seconds":$request_time}';
+    access_log /dev/stdout safe;
+    client_body_temp_path /tmp/client_body;
+    proxy_temp_path /tmp/proxy;
+    fastcgi_temp_path /tmp/fastcgi;
+    uwsgi_temp_path /tmp/uwsgi;
+    scgi_temp_path /tmp/scgi;
     client_max_body_size 6m;
-    root /srv/ishchi/frontend/dist;
-
-    # Never expose private attachments through static hosting.
-    location ^~ /media/chat/ { return 404; }
-    location /media/ {
-        alias /srv/ishchi/backend/media/;
+    client_body_timeout 15s;
+    client_header_timeout 15s;
+    keepalive_timeout 30s;
+    send_timeout 30s;
+    limit_req_zone $binary_remote_addr zone=ishchi_auth:10m rate=10r/m;
+    limit_req_status 429;
+    proxy_connect_timeout 3s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    # WSGI listens only on shared gateway/backend loopback.
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For "";
+    proxy_set_header X-Request-ID $request_id;
+    proxy_hide_header X-Request-ID;
+    server {
+        listen 8080;
+        server_name example.uz;
+        location = /healthz { access_log off; return 200 "ok\n"; }
+        location / { return 308 https://example.uz$request_uri; }
+    }
+    server {
+        listen 8443 ssl;
+        server_name example.uz;
+        if ($host != example.uz) { return 444; }
+        ssl_certificate /run/secrets/tls_certificate;
+        ssl_certificate_key /run/secrets/tls_key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_session_cache shared:TLS:10m;
+        ssl_session_tickets off;
+        root /usr/share/nginx/html;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         add_header X-Content-Type-Options nosniff always;
-        autoindex off;
+        add_header X-Frame-Options DENY always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+        add_header X-Request-ID $request_id always;
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html { internal; }
+        location ^~ /media/chat/ { return 404; }
+        location ^~ /media/orders/ { return 404; }
+        location ~ /\. { return 404; }
+        location ~ ^/media/(workers/(photos|portfolio)|employers/photos|categories)/ {
+            root /srv/ishchi;
+            autoindex off;
+            expires -1;
+            try_files $uri =404;
+        }
+        location /media/ { return 404; }
+        location /static/ { alias /srv/ishchi/static/; autoindex off; expires 7d; }
+        location /assets/ { try_files $uri =404; expires 7d; }
+        location ~ ^/api/v1/auth/(register|login|token/refresh|otp/.*|password/reset/.*)/$ {
+            limit_req zone=ishchi_auth burst=10 nodelay;
+            proxy_pass http://127.0.0.1:8000;
+        }
+        location = /django-admin/login/ {
+            limit_req zone=ishchi_auth burst=10 nodelay;
+            proxy_pass http://127.0.0.1:8000;
+        }
+        location /api/ { proxy_pass http://127.0.0.1:8000; }
+        location /django-admin/ { proxy_pass http://127.0.0.1:8000; }
+        location / { expires -1; try_files $uri $uri/ /index.html; }
     }
-    location /static/ { alias /srv/ishchi/backend/staticfiles/; }
-    location ~ ^/api/v1/auth/(register|login|otp/.*|password/reset/.*)/$ {
-        limit_req zone=ishchi_auth burst=10 nodelay;
-        proxy_pass http://127.0.0.1:8001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For "";
-    }
-    location /api/ {
-        proxy_pass http://127.0.0.1:8001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For "";
-    }
-    location /django-admin/ {
-        proxy_pass http://127.0.0.1:8001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto https;
-    }
-    location / { try_files $uri $uri/ /index.html; }
 }

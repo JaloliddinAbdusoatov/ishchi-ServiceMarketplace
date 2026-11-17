@@ -4,6 +4,7 @@ from apps.orders.views import (
     OrderCloseView,
     OrderCompleteView,
     OrderImageDeleteView,
+    OrderImageContentView,
     OrderImageUploadView,
     OrderPauseView,
     OrderPublishView,
@@ -21,4 +22,5 @@ urlpatterns = [
     path("<uuid:order_id>/complete/", OrderCompleteView.as_view(), name="orders-complete"),
     path("<uuid:order_id>/images/", OrderImageUploadView.as_view(), name="orders-image-upload"),
     path("<uuid:order_id>/images/<uuid:image_id>/", OrderImageDeleteView.as_view(), name="orders-image-delete"),
+    path("<uuid:order_id>/images/<uuid:image_id>/content/", OrderImageContentView.as_view(), name="orders-image-content"),
 ]

@@ -1,4 +1,7 @@
 from django.db.models import Q
+from django.http import FileResponse, Http404
+from pathlib import Path
+from apps.orders.access import visible_orders
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
@@ -113,7 +116,7 @@ class ServiceOrderDetailView(APIView):
         is_admin = getattr(user, "is_admin_user", False)
         if order.status in (OrderStatus.DRAFT, OrderStatus.PAUSED) and not (is_owner or is_admin):
             raise ForbiddenActionError("You do not have access to this draft/paused order.")
-        if order.status not in (OrderStatus.PUBLISHED,) and not (is_owner or is_assigned or is_admin):
+        if not (is_owner or is_assigned or is_admin):
             # Allow applicants who applied to this order to view its detail
             has_applied = hasattr(user, "worker_profile") and order.applications.filter(worker=user.worker_profile).exists()
             has_invited = hasattr(user, "worker_profile") and order.invitations.filter(worker=user.worker_profile).exists()
@@ -251,3 +254,18 @@ class OrderImageDeleteView(APIView):
         img = get_object_or_404(OrderImage, id=image_id, order=order)
         img.delete()
         return success_response(message="Order image deleted.")
+
+
+class OrderImageContentView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, order_id, image_id):
+        image = get_object_or_404(OrderImage, pk=image_id, order_id=order_id,
+            order__in=visible_orders(request.user))
+        try:
+            response = FileResponse(image.image.open("rb"), filename=Path(image.image.name).name)
+        except FileNotFoundError:
+            raise Http404 from None
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response

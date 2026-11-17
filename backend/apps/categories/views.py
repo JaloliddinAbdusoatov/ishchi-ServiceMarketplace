@@ -1,4 +1,6 @@
 from django.db.models import Q
+from django.db import transaction
+from apps.accounts.services.audit_service import record_admin_action
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
@@ -60,10 +62,12 @@ class CategoryListCreateView(APIView):
         responses={201: CategorySerializer},
         tags=["Categories"],
     )
+    @transaction.atomic
     def post(self, request):
         serializer = CategoryWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         category = serializer.save()
+        record_admin_action(request.user, "category.created", category)
         return success_response(
             data=CategorySerializer(category, context={"request": request}).data,
             message="Category created.",
@@ -88,11 +92,13 @@ class CategoryDetailView(APIView):
         responses={200: CategorySerializer},
         tags=["Categories"],
     )
+    @transaction.atomic
     def patch(self, request, category_id):
         category = get_object_or_404(Category, id=category_id)
         serializer = CategoryWriteSerializer(category, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated = CategoryService.update_category(category, serializer.validated_data)
+        record_admin_action(request.user, "category.updated", updated)
         return success_response(
             data=CategorySerializer(updated, context={"request": request}).data,
             message="Category updated.",
@@ -103,6 +109,7 @@ class CategoryDetailView(APIView):
         responses={200: OpenApiResponse(description="Category deleted")},
         tags=["Categories"],
     )
+    @transaction.atomic
     def delete(self, request, category_id):
         category = get_object_or_404(Category, id=category_id)
         if category.children.exists():
@@ -110,6 +117,7 @@ class CategoryDetailView(APIView):
         if category.orders.exists():
             raise BusinessRuleViolation("Cannot delete a category referenced by orders. Deactivate it instead.", code="category_in_use")
         category.worker_assignments.all().delete()
+        record_admin_action(request.user, "category.deleted", category)
         category.delete()
         return success_response(message="Category deleted.")
 
@@ -123,9 +131,11 @@ class CategoryDeactivateView(APIView):
         responses={200: CategorySerializer},
         tags=["Categories"],
     )
+    @transaction.atomic
     def post(self, request, category_id):
         category = get_object_or_404(Category, id=category_id)
         updated = CategoryService.deactivate_category(category)
+        record_admin_action(request.user, "category.deactivated", updated)
         return success_response(
             data=CategorySerializer(updated, context={"request": request}).data,
             message="Category deactivated and active worker assignments cleared.",

@@ -26,7 +26,8 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { ReportModal } from "@/components/shared/ReportModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { applicationsApi, chatApi, ordersApi, reviewsApi } from "@/services/api";
-import { extractApiErrorMessage, formatCurrencyUZS, formatDate, resolveMediaUrl } from "@/lib/utils";
+import { extractApiErrorMessage, formatCurrencyUZS, formatDate } from "@/lib/utils";
+import { OrderImagePreview } from "@/components/shared/OrderImagePreview";
 import { useAuthStore } from "@/stores/authStore";
 
 export function OrderDetailPage() {
@@ -265,11 +266,11 @@ export function OrderDetailPage() {
               {order.images?.length > 0 && (
                 <div className="grid gap-3 sm:grid-cols-3 pt-2">
                   {order.images.map((img) => (
-                    <img
+                    <OrderImagePreview
                       key={img.id}
-                      src={resolveMediaUrl(img.image)}
+                      orderId={order.id}
+                      imageId={img.id}
                       alt={img.caption || order.title}
-                      className="h-32 w-full rounded-lg object-cover border"
                     />
                   ))}
                 </div>
@@ -446,7 +447,7 @@ export function OrderDetailPage() {
                             type="button"
                             onClick={() => setReviewRating(star)}
                             className="p-1"
-                            aria-label={`Rate ${star}`}
+                            aria-label={t("reviews.rateStars", { count: star })}
                           >
                             <Star
                               className={`h-6 w-6 ${

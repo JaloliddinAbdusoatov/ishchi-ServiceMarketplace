@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-16",
+  "tool": "pip-audit",
+  "version": "2.10.1",
+  "advisory_service": "PyPI",
+  "project_environment_modified": false,
+  "scopes": [
+    {
+      "inventory": "python-installed.txt",
+      "result": "python-installed-audit.json",
+      "package_count": 34,
+      "advisories": 0,
+      "skipped": 0,
+      "upgrade_recommendation": "No advisory-driven package changes required by this scan."
+    },
+    {
+      "inventory": "../../backend/requirements-production.lock",
+      "result": "python-runtime-audit.json",
+      "package_count": 25,
+      "advisories": 0,
+      "skipped": 0,
+      "upgrade_recommendation": "No advisory-driven package changes required by this scan."
+    }
+  ]
+}

@@ -95,6 +95,8 @@ class ConversationMessagesView(APIView):
         parameters=[
             OpenApiParameter(name="after", type=str, required=False, description="ISO-8601 timestamp for polling new messages"),
             OpenApiParameter(name="unread_only", type=bool, required=False),
+            OpenApiParameter(name="ordering", type=str, required=False, enum=["created_at", "-created_at"],
+                             description="Use -created_at for newest-first paginated chat history."),
         ],
         responses={200: MessageSerializer(many=True)},
         tags=["Chat"],
@@ -103,7 +105,8 @@ class ConversationMessagesView(APIView):
         conv = get_object_or_404(Conversation.objects.select_related("order", "employer__user", "worker__user"), id=conversation_id)
         ChatService.assert_conversation_access(conv, request.user)
 
-        qs = conv.messages.select_related("sender").order_by("created_at")
+        ordering = "-created_at" if request.query_params.get("ordering") == "-created_at" else "created_at"
+        qs = conv.messages.select_related("sender").order_by(ordering, "-id" if ordering.startswith("-") else "id")
         after_param = request.query_params.get("after")
         if after_param:
             dt = parse_datetime(after_param)

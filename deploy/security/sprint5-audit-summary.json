@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-16",
+  "tool": "pip-audit",
+  "version": "2.10.1",
+  "source": "PyPI",
+  "project_environment_modified": false,
+  "scopes": [
+    {
+      "inventory": "deploy/security/python-installed.txt",
+      "inventory_sha256": "1cd1a0edc9935f527d898e367dd0463a0e2c4292425daa502cecd1459c261b38",
+      "result": "deploy/security/sprint5-python-installed-audit.json",
+      "package_count": 34,
+      "advisories": 0,
+      "skipped": 0
+    },
+    {
+      "inventory": "backend/requirements-production.lock",
+      "inventory_sha256": "55cdfce049eb974ca99f2aa2dc4278f4031eb46446ceafe96d32f44ae0b6ae51",
+      "result": "deploy/security/sprint5-python-runtime-audit.json",
+      "package_count": 25,
+      "advisories": 0,
+      "skipped": 0
+    }
+  ]
+}

@@ -8,9 +8,11 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
-from apps.common.views import HealthCheckView, PaymentStatusView, PublicPlatformStatsView
+from apps.common.views import HealthCheckView, LivenessView, PaymentStatusView, PublicPlatformStatsView
 
 api_v1_patterns = [
+    path("health/live/", LivenessView.as_view(), name="liveness"),
+    path("health/ready/", HealthCheckView.as_view(), name="readiness"),
     path("health/", HealthCheckView.as_view(), name="health-check"),
     path("stats/", PublicPlatformStatsView.as_view(), name="public-stats"),
     path("payments/status/", PaymentStatusView.as_view(), name="payment-status"),
@@ -40,6 +42,7 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += [path("media/chat/attachments/<path:name>", lambda request, name: HttpResponseNotFound())]
+    urlpatterns += [path("media/orders/images/<path:name>", lambda request, name: HttpResponseNotFound())]
     urlpatterns += [
         path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
         path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

@@ -11,6 +11,7 @@ class HealthCheckView(APIView):
     """Public liveness/dependency status without infrastructure details."""
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
+    throttle_classes = []
 
     def get(self, request, *args, **kwargs):
         db_status = cache_status = "ok"
@@ -31,6 +32,15 @@ class HealthCheckView(APIView):
         return Response({"success": healthy, "service": "ishchi-backend",
             "database": {"status": db_status}, "redis": {"status": cache_status},
             "payments_enabled": False}, status=200 if healthy else 503)
+
+
+class LivenessView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+    throttle_classes = []
+
+    def get(self, request):
+        return Response({"success": True, "service": "ishchi-backend"})
 
 
 class PaymentStatusView(APIView):
