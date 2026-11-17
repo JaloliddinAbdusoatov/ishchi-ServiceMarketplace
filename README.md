@@ -3,6 +3,9 @@
 ISHCHI — ishchilar va buyurtmachilarni bog‘laydigan xizmatlar platformasi.
 Yangi foydalanuvchilar uchun [o‘zbekcha o‘rnatish yo‘riqnomasi](#uzbek).
 
+Barcha ishga tushirish usullari, start/stop va admin yaratish:
+[RunProject.md](RunProject.md).
+
 **Ishga tushirish usulini tanlang:** yangi klon uchun quyidagi SQLite + Vite
 yo‘riqnomasi yetarli (Docker/PostgreSQL/Redis talab qilinmaydi). Docker’dagi lokal
 PostgreSQL/Redis muhiti uchun [operator yo‘riqnomasi](deploy/LOCAL.md) mavjud;
